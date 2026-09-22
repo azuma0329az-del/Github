@@ -21,7 +21,6 @@
             margin: 10px auto;
         }
         
-        /* 理解度の可視化エリア */
         .progress-box {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -47,6 +46,22 @@
             justify-content: space-around;
             color: #475569;
             font-weight: bold;
+        }
+
+        .reset-btn-container {
+            text-align: right;
+            margin-top: 6px;
+        }
+        .reset-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .reset-btn:hover {
+            color: #ef4444;
         }
 
         .badge-container {
@@ -177,7 +192,6 @@
 <body>
 
 <div class="quiz-container">
-    <!-- 理解度の可視化バー -->
     <div class="progress-box">
         <div style="display: flex; justify-content: space-between; font-weight: bold;">
             <span>習得達成率</span>
@@ -194,6 +208,9 @@
             <span>苦手: <span id="count-weak">0</span></span>
             <span>復習: <span id="count-review">0</span></span>
             <span>習得: <span id="count-mastered">0</span></span>
+        </div>
+        <div class="reset-btn-container">
+            <button class="reset-btn" onclick="resetProgress()">進捗をリセットする</button>
         </div>
     </div>
 
@@ -337,10 +354,44 @@ const words = [
     { ar: "مطبخ", pr: "マトバハ", jp: "台所", p: 35 }
 ];
 
+const STORAGE_KEY = 'arabic_quiz_word_stats_v1';
 let wordStats = {};
-words.forEach((_, index) => {
-    wordStats[index] = { correct: 0, total: 0 };
-});
+
+// ローカルストレージから進捗を復元
+function loadProgress() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try {
+            wordStats = JSON.parse(saved);
+        } catch (e) {
+            initStats();
+        }
+    } else {
+        initStats();
+    }
+}
+
+// 初期化
+function initStats() {
+    wordStats = {};
+    words.forEach((_, index) => {
+        wordStats[index] = { correct: 0, total: 0 };
+    });
+}
+
+// 保存
+function saveProgress() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(wordStats));
+}
+
+// リセット機能
+window.resetProgress = function() {
+    if (confirm("これまでの解答データ・進捗がすべてリセットされます。よろしいですか？")) {
+        localStorage.removeItem(STORAGE_KEY);
+        initStats();
+        nextQuestion();
+    }
+};
 
 let currentIdx = null;
 let currentWord = null;
@@ -354,7 +405,7 @@ function updateProgress() {
     let mastered = 0;
 
     words.forEach((_, idx) => {
-        let stat = wordStats[idx];
+        let stat = wordStats[idx] || { correct: 0, total: 0 };
         if (stat.total === 0) {
             unattempted++;
         } else {
@@ -385,7 +436,7 @@ window.nextQuestion = function() {
 
     let weightedIndices = [];
     words.forEach((_, idx) => {
-        let stat = wordStats[idx];
+        let stat = wordStats[idx] || { correct: 0, total: 0 };
         let rate = stat.total === 0 ? 0 : stat.correct / stat.total;
         let weight = Math.ceil((1.1 - rate) * 10);
         for (let i = 0; i < weight; i++) {
@@ -396,7 +447,7 @@ window.nextQuestion = function() {
     currentIdx = weightedIndices[Math.floor(Math.random() * weightedIndices.length)];
     currentWord = words[currentIdx];
 
-    const stat = wordStats[currentIdx];
+    const stat = wordStats[currentIdx] || { correct: 0, total: 0 };
     const rate = stat.total === 0 ? -1 : (stat.correct / stat.total);
 
     const rateBadge = document.getElementById('rate-badge');
@@ -456,7 +507,6 @@ function setupUI() {
             grid.appendChild(btn);
         });
 
-        // 「分からない」ボタンを追加
         let passBtn = document.createElement('button');
         passBtn.className = 'option-btn pass-btn';
         passBtn.textContent = "❓ 分からない (パス)";
@@ -561,11 +611,18 @@ window.checkTypedAnswer = function(isSkip) {
 };
 
 function recordResult(isCorrect) {
+    if (!wordStats[currentIdx]) {
+        wordStats[currentIdx] = { correct: 0, total: 0 };
+    }
     wordStats[currentIdx].total += 1;
     if (isCorrect) wordStats[currentIdx].correct += 1;
+    
+    // データをブラウザに永続保存
+    saveProgress();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    loadProgress();
     nextQuestion();
 });
 </script>
