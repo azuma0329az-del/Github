@@ -21,6 +21,33 @@
             margin: 10px auto;
         }
         
+        /* ページフィルター部分のスタイル */
+        .filter-container {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .filter-label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #3730a3;
+        }
+        .page-select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #818cf8;
+            font-weight: bold;
+            color: #1e1b4b;
+            background-color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
         .progress-box {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -192,9 +219,19 @@
 <body>
 
 <div class="quiz-container">
+
+    <!-- ページフィルター領域 -->
+    <div class="filter-container">
+        <span class="filter-label">📖 出題範囲を選択:</span>
+        <select id="page-filter" class="page-select" onchange="onPageFilterChange()">
+            <option value="all">すべてのページ (P.1〜35)</option>
+            <!-- JSで動的にページ選択オプションを追加します -->
+        </select>
+    </div>
+
     <div class="progress-box">
         <div style="display: flex; justify-content: space-between; font-weight: bold;">
-            <span>習得達成率</span>
+            <span>習得達成率 (<span id="scope-text">全体</span>)</span>
             <span id="master-percent">0%</span>
         </div>
         <div class="progress-bar-container">
@@ -204,13 +241,13 @@
             <div id="bar-unattempted" class="bar-unattempted" style="width: 100%"></div>
         </div>
         <div class="stats-text">
-            <span>未挑戦: <span id="count-unattempted">183</span></span>
+            <span>未挑戦: <span id="count-unattempted">0</span></span>
             <span>苦手: <span id="count-weak">0</span></span>
             <span>復習: <span id="count-review">0</span></span>
             <span>習得: <span id="count-mastered">0</span></span>
         </div>
         <div class="reset-btn-container">
-            <button class="reset-btn" onclick="resetProgress()">進捗をリセットする</button>
+            <button class="reset-btn" onclick="resetProgress()">全進捗をリセットする</button>
         </div>
     </div>
 
@@ -356,8 +393,34 @@ const words = [
 
 const STORAGE_KEY = 'arabic_quiz_word_stats_v1';
 let wordStats = {};
+let selectedPageFilter = "all"; // 現在のページ絞り込み設定
 
-// ローカルストレージから進捗を復元
+// フィルター生成（5ページ単位＋単一ページ）
+function setupFilterOptions() {
+    const select = document.getElementById('page-filter');
+    const maxPage = Math.max(...words.map(w => w.p));
+    
+    // 5ページ単位のブロックを追加
+    for (let i = 1; i <= maxPage; i += 5) {
+        let end = Math.min(i + 4, maxPage);
+        let opt = document.createElement('option');
+        opt.value = `range_${i}_${end}`;
+        opt.textContent = `P.${i} 〜 P.${end}`;
+        select.appendChild(opt);
+    }
+
+    // 個別ページを追加
+    let group = document.createElement('optgroup');
+    group.label = "--- 個別ページ ---";
+    for (let i = 1; i <= maxPage; i++) {
+        let opt = document.createElement('option');
+        opt.value = `page_${i}`;
+        opt.textContent = `P.${i} のみ`;
+        group.appendChild(opt);
+    }
+    select.appendChild(group);
+}
+
 function loadProgress() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -371,7 +434,6 @@ function loadProgress() {
     }
 }
 
-// 初期化
 function initStats() {
     wordStats = {};
     words.forEach((_, index) => {
@@ -379,12 +441,10 @@ function initStats() {
     });
 }
 
-// 保存
 function saveProgress() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(wordStats));
 }
 
-// リセット機能
 window.resetProgress = function() {
     if (confirm("これまでの解答データ・進捗がすべてリセットされます。よろしいですか？")) {
         localStorage.removeItem(STORAGE_KEY);
@@ -398,13 +458,33 @@ let currentWord = null;
 let currentMode = "choice";
 let correctAnswer = "";
 
+// 現在のフィルター条件に合う単語インデックスの配列を返す
+function getFilteredIndices() {
+    if (selectedPageFilter === "all") {
+        return words.map((_, idx) => idx);
+    } else if (selectedPageFilter.startsWith("range_")) {
+        const [, start, end] = selectedPageFilter.split("_").map(Number);
+        return words.map((w, idx) => (w.p >= start && w.p <= end) ? idx : null).filter(v => v !== null);
+    } else if (selectedPageFilter.startsWith("page_")) {
+        const page = Number(selectedPageFilter.split("_")[1]);
+        return words.map((w, idx) => (w.p === page) ? idx : null).filter(v => v !== null);
+    }
+    return words.map((_, idx) => idx);
+}
+
+window.onPageFilterChange = function() {
+    selectedPageFilter = document.getElementById('page-filter').value;
+    nextQuestion();
+};
+
 function updateProgress() {
+    const targetIndices = getFilteredIndices();
     let unattempted = 0;
     let weak = 0;
     let review = 0;
     let mastered = 0;
 
-    words.forEach((_, idx) => {
+    targetIndices.forEach(idx => {
         let stat = wordStats[idx] || { correct: 0, total: 0 };
         if (stat.total === 0) {
             unattempted++;
@@ -416,26 +496,34 @@ function updateProgress() {
         }
     });
 
-    const total = words.length;
+    const total = targetIndices.length;
     document.getElementById('count-unattempted').textContent = unattempted;
     document.getElementById('count-weak').textContent = weak;
     document.getElementById('count-review').textContent = review;
     document.getElementById('count-mastered').textContent = mastered;
 
-    document.getElementById('bar-unattempted').style.width = `${(unattempted/total)*100}%`;
-    document.getElementById('bar-weak').style.width = `${(weak/total)*100}%`;
-    document.getElementById('bar-review').style.width = `${(review/total)*100}%`;
-    document.getElementById('bar-mastered').style.width = `${(mastered/total)*100}%`;
+    document.getElementById('bar-unattempted').style.width = `${total ? (unattempted/total)*100 : 0}%`;
+    document.getElementById('bar-weak').style.width = `${total ? (weak/total)*100 : 0}%`;
+    document.getElementById('bar-review').style.width = `${total ? (review/total)*100 : 0}%`;
+    document.getElementById('bar-mastered').style.width = `${total ? (mastered/total)*100 : 0}%`;
 
-    let percent = Math.round((mastered / total) * 100);
+    let percent = total ? Math.round((mastered / total) * 100) : 0;
     document.getElementById('master-percent').textContent = `${percent}%`;
+
+    // 範囲のテキスト更新
+    const filterElem = document.getElementById('page-filter');
+    const selectedText = filterElem.options[filterElem.selectedIndex].text;
+    document.getElementById('scope-text').textContent = selectedText.replace("の単語", "");
 }
 
 window.nextQuestion = function() {
     updateProgress();
 
+    const targetIndices = getFilteredIndices();
+    if (targetIndices.length === 0) return;
+
     let weightedIndices = [];
-    words.forEach((_, idx) => {
+    targetIndices.forEach(idx => {
         let stat = wordStats[idx] || { correct: 0, total: 0 };
         let rate = stat.total === 0 ? 0 : stat.correct / stat.total;
         let weight = Math.ceil((1.1 - rate) * 10);
@@ -469,7 +557,7 @@ window.nextQuestion = function() {
         rateBadge.className = "rate-badge rate-high";
     }
 
-    document.getElementById('page-badge').textContent = `P.${currentWord.p} (全${words.length}語)`;
+    document.getElementById('page-badge').textContent = `P.${currentWord.p}`;
     document.getElementById('feedback-msg').textContent = '';
     document.getElementById('next-btn').style.display = 'none';
 
@@ -617,11 +705,11 @@ function recordResult(isCorrect) {
     wordStats[currentIdx].total += 1;
     if (isCorrect) wordStats[currentIdx].correct += 1;
     
-    // データをブラウザに永続保存
     saveProgress();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    setupFilterOptions();
     loadProgress();
     nextQuestion();
 });
