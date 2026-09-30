@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アラビア語単語クイズ</title>
+    <title>アラビア語単語・例文クイズ</title>
     <style>
         body {
             font-family: sans-serif;
@@ -21,33 +21,7 @@
             margin: 10px auto;
         }
         
-        /* ページフィルター部分のスタイル */
-        .filter-container {
-            background: #eef2ff;
-            border: 1px solid #c7d2fe;
-            border-radius: 10px;
-            padding: 10px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .filter-label {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: #3730a3;
-        }
-        .page-select {
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid #818cf8;
-            font-weight: bold;
-            color: #1e1b4b;
-            background-color: white;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-
+        /* 理解度の可視化エリア */
         .progress-box {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -73,22 +47,6 @@
             justify-content: space-around;
             color: #475569;
             font-weight: bold;
-        }
-
-        .reset-btn-container {
-            text-align: right;
-            margin-top: 6px;
-        }
-        .reset-btn {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            font-size: 0.75rem;
-            cursor: pointer;
-            text-decoration: underline;
-        }
-        .reset-btn:hover {
-            color: #ef4444;
         }
 
         .badge-container {
@@ -214,24 +172,57 @@
             cursor: pointer;
             display: none;
         }
+
+        .mode-select-container {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .mode-select-container .filter-label {
+            display: block;
+            font-size: 0.85rem;
+            color: #475569;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .page-select {
+            width: 100%;
+            padding: 9px 10px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            background: white;
+            font-size: 0.95rem;
+        }
+        .sentence-answer {
+            margin-top: 10px;
+            font-size: 1.45rem;
+            font-weight: bold;
+            direction: rtl;
+            min-height: 35px;
+        }
+        .sentence-pronunciation {
+            margin-top: 5px;
+            color: #0284c7;
+            font-weight: bold;
+            min-height: 25px;
+        }
+
     </style>
 </head>
 <body>
 
 <div class="quiz-container">
-
-    <!-- ページフィルター領域 -->
-    <div class="filter-container">
-        <span class="filter-label">📖 出題範囲を選択:</span>
-        <select id="page-filter" class="page-select" onchange="onPageFilterChange()">
-            <option value="all">すべてのページ (P.1〜35)</option>
-            <!-- JSで動的にページ選択オプションを追加します -->
+    <div class="mode-select-container">
+        <span class="filter-label">📝 テストモード</span>
+        <select id="quiz-mode-select" class="page-select" onchange="onQuizModeChange()">
+            <option value="words">単語テスト</option>
+            <option value="sentences">例文テスト</option>
         </select>
     </div>
 
+    <!-- 理解度の可視化バー -->
     <div class="progress-box">
         <div style="display: flex; justify-content: space-between; font-weight: bold;">
-            <span>習得達成率 (<span id="scope-text">全体</span>)</span>
+            <span>習得達成率</span>
             <span id="master-percent">0%</span>
         </div>
         <div class="progress-bar-container">
@@ -241,13 +232,14 @@
             <div id="bar-unattempted" class="bar-unattempted" style="width: 100%"></div>
         </div>
         <div class="stats-text">
-            <span>未挑戦: <span id="count-unattempted">0</span></span>
+            <span>未挑戦: <span id="count-unattempted">183</span></span>
             <span>苦手: <span id="count-weak">0</span></span>
             <span>復習: <span id="count-review">0</span></span>
             <span>習得: <span id="count-mastered">0</span></span>
         </div>
-        <div class="reset-btn-container">
-            <button class="reset-btn" onclick="resetProgress()">全進捗をリセットする</button>
+
+        <div style="margin-top: 10px;">
+            <button class="skip-btn" onclick="resetProgress()">学習履歴をリセット</button>
         </div>
     </div>
 
@@ -269,306 +261,490 @@
 <script>
 const words = [
     // P.1 - P.5
-    { ar: "جبل", pr: "ジャバル", jp: "山", p: 1 }, { ar: "بنت", pr: "ビント", jp: "女の子", p: 1 },
-    { ar: "موزة", pr: "マウザ", jp: "バナナ", p: 1 }, { ar: "يوم", pr: "ヤウム", jp: "日", p: 1 },
-    { ar: "خبر", pr: "ハバル", jp: "ニュース", p: 1 }, { ar: "مال", pr: "マール", jp: "お金", p: 1 },
-    { ar: "علم", pr: "イルム / アラム", jp: "旗/知識", p: 2 }, { ar: "ليمون", pr: "ライムーン", jp: "レモン", p: 2 },
-    { ar: "حاسوب", pr: "ハースーブ", jp: "パソコン", p: 2 }, { ar: "مكتب", pr: "マクタブ", jp: "デスク/事務所", p: 2 },
-    { ar: "بيت", pr: "バイト", jp: "家", p: 2 }, { ar: "ممحاة", pr: "ミムハー", jp: "消しゴム", p: 2 },
-    { ar: "دبابة", pr: "ダッバーバ", jp: "戦車", p: 2 }, { ar: "قلم", pr: "カラム", jp: "ペン", p: 2 },
-    { ar: "شاب", pr: "シヤーブ", jp: "若者", p: 2 }, { ar: "كتاب", pr: "キターブ", jp: "本", p: 2 },
-    { ar: "مطر", pr: "マタル", jp: "雨", p: 3 }, { ar: "أرنب", pr: "アルナブ", jp: "ウサギ", p: 3 },
-    { ar: "قميص", pr: "カミース", jp: "シャツ", p: 3 }, { ar: "صباح", pr: "サバーハ", jp: "朝", p: 3 },
-    { ar: "سرير", pr: "サリール", jp: "ベッド", p: 3 }, { ar: "ميزان", pr: "ミーザーン", jp: "天秤/体重計", p: 4 },
-    { ar: "جرس", pr: "ジャラス", jp: "ベル", p: 4 }, { ar: "بن", pr: "ブン", jp: "コーヒー豆", p: 4 },
-    { ar: "نيران", pr: "ニーラーン", jp: "火炎", p: 4 }, { ar: "نور", pr: "ヌール", jp: "光", p: 4 },
-    { ar: "ريال", pr: "リヤール", jp: "リヤル", p: 4 }, { ar: "لسان", pr: "リサーン", jp: "舌", p: 5 },
-    { ar: "رمان", pr: "ルンマーン", jp: "ザクロ", p: 5 }, { ar: "من", pr: "ミン", jp: "〜から", p: 5 },
-    { ar: "نملة", pr: "ナムラ", jp: "アリ", p: 5 }, { ar: "نافذة", pr: "ナーフィザ", jp: "窓", p: 5 },
-    { ar: "سمين", pr: "サミーン", jp: "太った", p: 5 }, { ar: "رمال", pr: "リマール", jp: "砂", p: 5 },
+    { ar: "جبل", pr: "jabal", jp: "山", p: 1 }, { ar: "بنت", pr: "bint", jp: "女の子", p: 1 },
+    { ar: "موزة", pr: "mawza", jp: "バナナ", p: 1 }, { ar: "يوم", pr: "yawm", jp: "日", p: 1 },
+    { ar: "خبر", pr: "khabar", jp: "ニュース", p: 1 }, { ar: "مال", pr: "maal", jp: "お金", p: 1 },
+    { ar: "علم", pr: "ʿilm / ʿalam", jp: "旗/知識", p: 2 }, { ar: "ليمون", pr: "laymūn", jp: "レモン", p: 2 },
+    { ar: "حاسوب", pr: "ḥāsūb", jp: "パソコン", p: 2 }, { ar: "مكتب", pr: "maktab", jp: "デスク/事務所", p: 2 },
+    { ar: "بيت", pr: "bayt", jp: "家", p: 2 }, { ar: "ممحاة", pr: "mimḥāh", jp: "消しゴム", p: 2 },
+    { ar: "دبابة", pr: "dabbābah", jp: "戦車", p: 2 }, { ar: "قلم", pr: "qalam", jp: "ペン", p: 2 },
+    { ar: "شاب", pr: "shābb", jp: "若者", p: 2 }, { ar: "كتاب", pr: "kitāb", jp: "本", p: 2 },
+    { ar: "مطر", pr: "maṭar", jp: "雨", p: 3 }, { ar: "أرنب", pr: "arnab", jp: "ウサギ", p: 3 },
+    { ar: "قميص", pr: "qamīṣ", jp: "シャツ", p: 3 }, { ar: "صباح", pr: "ṣabāḥ", jp: "朝", p: 3 },
+    { ar: "سرير", pr: "sarīr", jp: "ベッド", p: 3 }, { ar: "ميزان", pr: "mīzān", jp: "天秤/体重計", p: 4 },
+    { ar: "جرس", pr: "jaras", jp: "ベル", p: 4 }, { ar: "بن", pr: "bunn", jp: "コーヒー豆", p: 4 },
+    { ar: "نيران", pr: "nīrān", jp: "火炎", p: 4 }, { ar: "نور", pr: "nūr", jp: "光", p: 4 },
+    { ar: "ريال", pr: "riyāl", jp: "リヤル", p: 4 }, { ar: "لسان", pr: "lisān", jp: "舌", p: 5 },
+    { ar: "رمان", pr: "rummān", jp: "ザクロ", p: 5 }, { ar: "من", pr: "min", jp: "〜から", p: 5 },
+    { ar: "نملة", pr: "namlah", jp: "アリ", p: 5 }, { ar: "نافذة", pr: "nāfidhah", jp: "窓", p: 5 },
+    { ar: "سمين", pr: "samīn", jp: "太った", p: 5 }, { ar: "رمال", pr: "rimāl", jp: "砂", p: 5 },
 
     // P.6 - P.10
-    { ar: "معلم", pr: "ムアッリム", jp: "教師", p: 6 }, { ar: "دفتر", pr: "ダフタル", jp: "ノート", p: 6 },
-    { ar: "أسنان", pr: "アスナーン", jp: "歯", p: 6 }, { ar: "عنب", pr: "イナブ", jp: "ブドウ", p: 6 },
-    { ar: "تجري", pr: "タジュリー", jp: "走る", p: 6 }, { ar: "حمار", pr: "ヒマール", jp: "ロバ", p: 6 },
-    { ar: "نظارة", pr: "ナッザーラ", jp: "眼鏡", p: 6 }, { ar: "برج", pr: "ブルジュ", jp: "タワー", p: 6 },
-    { ar: "ثلج", pr: "サルジュ", jp: "氷/雪", p: 6 }, { ar: "فرح", pr: "ファラハ", jp: "喜び", p: 7 },
-    { ar: "بطيخ", pr: "バッティーフ", jp: "スイカ", p: 7 }, { ar: "شجرة", pr: "シャジャラ", jp: "木", p: 7 },
-    { ar: "جزيرة", pr: "ジャジーラ", jp: "島", p: 7 }, { ar: "نخلة", pr: "ナフラ", jp: "ナツメヤシ", p: 7 },
-    { ar: "حيط", pr: "ハイト", jp: "壁", p: 7 }, { ar: "أخضر", pr: "アフザル", jp: "緑", p: 7 },
-    { ar: "جزر", pr: "ジャザル", jp: "ニンジン", p: 8 }, { ar: "خيمة", pr: "ハイマ", jp: "テント", p: 8 },
-    { ar: "نجم", pr: "ナジュム", jp: "星", p: 8 }, { ar: "خروف", pr: "ハルーフル", jp: "ヒツジ", p: 8 },
-    { ar: "خاتم", pr: "ハーティム", jp: "指輪", p: 8 }, { ar: "درج", pr: "ダラジュ", jp: "階段", p: 8 },
-    { ar: "فخار", pr: "ファッハール", jp: "土器", p: 8 }, { ar: "كوخ", pr: "クーハ", jp: "小屋", p: 8 },
-    { ar: "باخرة", pr: "バーヒラ", jp: "客船", p: 9 }, { ar: "معجون", pr: "マアジューン", jp: "歯磨き粉", p: 9 },
-    { ar: "جندي", pr: "ジュンジッイ", jp: "兵士", p: 9 }, { ar: "السجن", pr: "アス・シジン", jp: "刑務所", p: 9 },
-    { ar: "عجلة", pr: "アジャラ", jp: "車輪", p: 9 }, { ar: "خزانة", pr: "ヒザーナ", jp: "タンス", p: 9 },
-    { ar: "نبات", pr: "ナバート", jp: "植物", p: 10 }, { ar: "تنين", pr: "テンニーン", jp: "ドラゴン", p: 10 },
-    { ar: "تمر", pr: "タムル", jp: "デーツ(乾燥)", p: 10 }, { ar: "تاج", pr: "タージュ", jp: "王冠", p: 10 },
+    { ar: "معلم", pr: "muʿallim", jp: "教師", p: 6 }, { ar: "دفتر", pr: "daftar", jp: "ノート", p: 6 },
+    { ar: "أسنان", pr: "asnān", jp: "歯", p: 6 }, { ar: "عنب", pr: "ʿinab", jp: "ブドウ", p: 6 },
+    { ar: "تجري", pr: "tajrī", jp: "走る", p: 6 }, { ar: "حمار", pr: "ḥimār", jp: "ロバ", p: 6 },
+    { ar: "نظارة", pr: "naẓẓārah", jp: "眼鏡", p: 6 }, { ar: "برج", pr: "burj", jp: "タワー", p: 6 },
+    { ar: "ثلج", pr: "thalj", jp: "氷/雪", p: 6 }, { ar: "فرح", pr: "faraḥ", jp: "喜び", p: 7 },
+    { ar: "بطيخ", pr: "baṭṭīkh", jp: "スイカ", p: 7 }, { ar: "شجرة", pr: "shajarah", jp: "木", p: 7 },
+    { ar: "جزيرة", pr: "jazīrah", jp: "島", p: 7 }, { ar: "نخلة", pr: "nakhlah", jp: "ナツメヤシ", p: 7 },
+    { ar: "حيط", pr: "ḥāʾiṭ", jp: "壁", p: 7 }, { ar: "أخضر", pr: "akhḍar", jp: "緑", p: 7 },
+    { ar: "جزر", pr: "jazar", jp: "ニンジン", p: 8 }, { ar: "خيمة", pr: "khaymah", jp: "テント", p: 8 },
+    { ar: "نجم", pr: "najm", jp: "星", p: 8 }, { ar: "خروف", pr: "kharūf", jp: "ヒツジ", p: 8 },
+    { ar: "خاتم", pr: "khātam", jp: "指輪", p: 8 }, { ar: "درج", pr: "daraj", jp: "階段", p: 8 },
+    { ar: "فخار", pr: "fakhkhār", jp: "土器", p: 8 }, { ar: "كوخ", pr: "kūkh", jp: "小屋", p: 8 },
+    { ar: "باخرة", pr: "bākhirah", jp: "客船", p: 9 }, { ar: "معجون", pr: "maʿjūn", jp: "歯磨き粉", p: 9 },
+    { ar: "جندي", pr: "jundī", jp: "兵士", p: 9 }, { ar: "السجن", pr: "as-sijn", jp: "刑務所", p: 9 },
+    { ar: "عجلة", pr: "ʿajalah", jp: "車輪", p: 9 }, { ar: "خزانة", pr: "khizānah", jp: "タンス", p: 9 },
+    { ar: "نبات", pr: "nabāt", jp: "植物", p: 10 }, { ar: "تنين", pr: "tinnīn", jp: "ドラゴン", p: 10 },
+    { ar: "تمر", pr: "tamr", jp: "デーツ(乾燥)", p: 10 }, { ar: "تاج", pr: "tāj", jp: "王冠", p: 10 },
 
     // P.11 - P.15
-    { ar: "خيط", pr: "ハイト", jp: "糸", p: 11 }, { ar: "تحت", pr: "タハタ", jp: "〜の下", p: 11 },
-    { ar: "أخطبوط", pr: "ウフトブート", jp: "タコ", p: 11 }, { ar: "طين", pr: "ティーン", jp: "泥", p: 11 },
-    { ar: "بطة", pr: "バッタ", jp: "アヒル", p: 11 }, { ar: "حوت", pr: "フート", jp: "クジラ", p: 11 },
-    { ar: "دجاجة", pr: "ダジャージャ", jp: "ニワトリ", p: 11 }, { ar: "مطار", pr: "マタール", jp: "空港", p: 12 },
-    { ar: "دراجة", pr: "ダッラージャ", jp: "自転車", p: 12 }, { ar: "تراب", pr: "トゥラーブ", jp: "土", p: 12 },
-    { ar: "متحف", pr: "マトハフ", jp: "博物館", p: 12 }, { ar: "طريق", pr: "タリーク", jp: "道路", p: 12 },
-    { ar: "قطار", pr: "キタール", jp: "電車", p: 12 }, { ar: "دولاب", pr: "ドゥーラーブ", jp: "戸棚", p: 13 },
-    { ar: "صياد", pr: "サイヤード", jp: "漁師/ハンター", p: 13 }, { ar: "سد", pr: "サッド", jp: "ダム", p: 13 },
-    { ar: "مكتبة", pr: "マクタバ", jp: "図書館", p: 13 }, { ar: "مسطرة", pr: "ミスタラ", jp: "定規", p: 13 },
-    { ar: "طاولة", pr: "ターウィラ", jp: "テーブル", p: 13 }, { ar: "طفل", pr: "ティフル", jp: "子供", p: 13 },
-    { ar: "هاتف", pr: "ハーティフ", jp: "電話", p: 13 }, { ar: "مسدس", pr: "ムサッダス", jp: "拳銃", p: 13 },
-    { ar: "تلفاز", pr: "ティルファーズ", jp: "テレビ", p: 13 }, { ar: "ذئب", pr: "ズイブ", jp: "オオカミ", p: 14 },
-    { ar: "أذن", pr: "ウズン", jp: "耳", p: 14 }, { ar: "ثعلب", pr: "サアラブ", jp: "キツネ", p: 14 },
-    { ar: "تلميذ", pr: "ティルミーズ", jp: "生徒", p: 14 }, { ar: "كمثرى", pr: "クムスラー", jp: "洋梨", p: 14 },
-    { ar: "ذرة", pr: "ズラ", jp: "トウモロコシ", p: 14 }, { ar: "ذراع", pr: "ズィラーア", jp: "腕", p: 14 },
-    { ar: "نوم", pr: "ナウム", jp: "睡眠", p: 15 }, { ar: "ثوم", pr: "スーム", jp: "ニンニク", p: 15 },
-    { ar: "ثعبان", pr: "スウバーン", jp: "ヘビ", p: 15 }, { ar: "ثلاثة", pr: "サラーサ", jp: "3", p: 15 },
+    { ar: "خيط", pr: "khayṭ", jp: "糸", p: 11 }, { ar: "تحت", pr: "taḥt", jp: "〜の下", p: 11 },
+    { ar: "أخطبوط", pr: "ukhtubūṭ", jp: "タコ", p: 11 }, { ar: "طين", pr: "ṭīn", jp: "泥", p: 11 },
+    { ar: "بطة", pr: "baṭṭah", jp: "アヒル", p: 11 }, { ar: "حوت", pr: "ḥūt", jp: "クジラ", p: 11 },
+    { ar: "دجاجة", pr: "dajājah", jp: "ニワトリ", p: 11 }, { ar: "مطار", pr: "maṭār", jp: "空港", p: 12 },
+    { ar: "دراجة", pr: "darrājah", jp: "自転車", p: 12 }, { ar: "تراب", pr: "turāb", jp: "土", p: 12 },
+    { ar: "متحف", pr: "matḥaf", jp: "博物館", p: 12 }, { ar: "طريق", pr: "ṭarīq", jp: "道路", p: 12 },
+    { ar: "قطار", pr: "qiṭār", jp: "電車", p: 12 }, { ar: "دولاب", pr: "dūlāb", jp: "戸棚", p: 13 },
+    { ar: "صياد", pr: "ṣayyād", jp: "漁師/ハンター", p: 13 }, { ar: "سد", pr: "sadd", jp: "ダム", p: 13 },
+    { ar: "مكتبة", pr: "maktabah", jp: "図書館", p: 13 }, { ar: "مسطرة", pr: "misṭarah", jp: "定規", p: 13 },
+    { ar: "طاولة", pr: "ṭāwilah", jp: "テーブル", p: 13 }, { ar: "طفل", pr: "ṭifl", jp: "子供", p: 13 },
+    { ar: "هاتف", pr: "hātif", jp: "電話", p: 13 }, { ar: "مسدس", pr: "musaddas", jp: "拳銃", p: 13 },
+    { ar: "تلفاز", pr: "tilfāz", jp: "テレビ", p: 13 }, { ar: "ذئب", pr: "dhiʾb", jp: "オオカミ", p: 14 },
+    { ar: "أذن", pr: "udhun", jp: "耳", p: 14 }, { ar: "ثعلب", pr: "thaʿlab", jp: "キツネ", p: 14 },
+    { ar: "تلميذ", pr: "tilmīdh", jp: "生徒", p: 14 }, { ar: "كمثرى", pr: "kumathrā", jp: "洋梨", p: 14 },
+    { ar: "ذرة", pr: "dhurrah", jp: "トウモロコシ", p: 14 }, { ar: "ذراع", pr: "dhirāʿ", jp: "腕", p: 14 },
+    { ar: "نوم", pr: "nawm", jp: "睡眠", p: 15 }, { ar: "ثوم", pr: "thūm", jp: "ニンニク", p: 15 },
+    { ar: "ثعبان", pr: "thuʿbān", jp: "ヘビ", p: 15 }, { ar: "ثلاثة", pr: "thalāthah", jp: "3", p: 15 },
 
     // P.16 - P.20
-    { ar: "ثمار", pr: "シマール", jp: "果実", p: 16 }, { ar: "ثوب", pr: "ソウブ", jp: "服", p: 16 },
-    { ar: "ثمانية", pr: "サマーニヤ", jp: "8", p: 16 }, { ar: "مثلجات", pr: "ムサッラジャート", jp: "アイスクリーム", p: 16 },
-    { ar: "تفاح", pr: "トゥッファーフ", jp: "リンゴ", p: 16 }, { ar: "حذاء", pr: "ヒザー", jp: "靴", p: 16 },
-    { ar: "جذور", pr: "ジュズール", jp: "根", p: 16 }, { ar: "صحن", pr: "サハン", jp: "皿", p: 17 },
-    { ar: "بلح", pr: "バラハ", jp: "デーツ", p: 17 }, { ar: "كهف", pr: "カハフ", jp: "洞窟", p: 17 },
-    { ar: "هلال", pr: "ヒラール", jp: "三日月", p: 17 }, { ar: "حبل", pr: "ハブル", jp: "ロープ", p: 17 },
-    { ar: "مسبح", pr: "マスバハ", jp: "プール", p: 17 }, { ar: "هرم", pr: "ハラム", jp: "ピラミッド", p: 17 },
-    { ar: "سهم", pr: "サハム", jp: "矢", p: 18 }, { ar: "فواكه", pr: "ファワーキフ", jp: "果物", p: 18 },
-    { ar: "مفتاح", pr: "ミフターハ", jp: "鍵", p: 18 }, { ar: "سباح", pr: "サッバーハ", jp: "水泳選手", p: 18 },
-    { ar: "حلوى", pr: "ハルワー", jp: "お菓子", p: 18 }, { ar: "شاحنة", pr: "シャーヒナ", jp: "トラック", p: 18 },
-    { ar: "هدية", pr: "ハディッヤ", jp: "プレゼント", p: 18 }, { ar: "نهر", pr: "ナハル", jp: "川", p: 18 },
-    { ar: "تمساح", pr: "ティムサーハ", jp: "ワニ", p: 18 }, { ar: "قهوة", pr: "カフワ", jp: "コーヒー", p: 19 },
-    { ar: "وردة", pr: "ワルダ", jp: "バラ", p: 19 }, { ar: "حقيبة", pr: "ハキーバ", jp: "バッグ", p: 19 },
-    { ar: "سيارة", pr: "サイヤーラ", jp: "車", p: 19 }, { ar: "ذهب", pr: "ザハブ", jp: "金", p: 19 },
-    { ar: "أريكة", pr: "アリーカ", jp: "ソファ", p: 19 }, { ar: "مقص", pr: "ミカッス", jp: "ハサミ", p: 20 },
-    { ar: "صوص", pr: "スース", jp: "ヒヨコ", p: 20 }, { ar: "قفص", pr: "カファス", jp: "鳥かご", p: 20 },
-    { ar: "صندوق", pr: "スンドゥーク", jp: "箱", p: 20 },
+    { ar: "ثمار", pr: "thimār", jp: "果実", p: 16 }, { ar: "ثوب", pr: "thawb", jp: "服", p: 16 },
+    { ar: "ثمانية", pr: "thamāniyah", jp: "8", p: 16 }, { ar: "مثلجات", pr: "muthallajāt", jp: "アイスクリーム", p: 16 },
+    { ar: "تفاح", pr: "tuffāḥ", jp: "リンゴ", p: 16 }, { ar: "حذاء", pr: "ḥidhāʾ", jp: "靴", p: 16 },
+    { ar: "جذور", pr: "judhūr", jp: "根", p: 16 }, { ar: "صحن", pr: "ṣaḥn", jp: "皿", p: 17 },
+    { ar: "بلح", pr: "balaḥ", jp: "デーツ", p: 17 }, { ar: "كهف", pr: "kahf", jp: "洞窟", p: 17 },
+    { ar: "هلال", pr: "hilāl", jp: "三日月", p: 17 }, { ar: "حبل", pr: "ḥabl", jp: "ロープ", p: 17 },
+    { ar: "مسبح", pr: "masbaḥ", jp: "プール", p: 17 }, { ar: "هرم", pr: "haram", jp: "ピラミッド", p: 17 },
+    { ar: "سهم", pr: "sahm", jp: "矢", p: 18 }, { ar: "فواكه", pr: "fawākih", jp: "果物", p: 18 },
+    { ar: "مفتاح", pr: "miftāḥ", jp: "鍵", p: 18 }, { ar: "سباح", pr: "sabbāḥ", jp: "水泳選手", p: 18 },
+    { ar: "حلوى", pr: "ḥalwā", jp: "お菓子", p: 18 }, { ar: "شاحنة", pr: "shāḥinah", jp: "トラック", p: 18 },
+    { ar: "هدية", pr: "hadiyyah", jp: "プレゼント", p: 18 }, { ar: "نهر", pr: "nahr", jp: "川", p: 18 },
+    { ar: "تمساح", pr: "timsāḥ", jp: "ワニ", p: 18 }, { ar: "قهوة", pr: "qahwah", jp: "コーヒー", p: 19 },
+    { ar: "وردة", pr: "wardah", jp: "バラ", p: 19 }, { ar: "حقيبة", pr: "ḥaqībah", jp: "バッグ", p: 19 },
+    { ar: "سيارة", pr: "sayyārah", jp: "車", p: 19 }, { ar: "ذهب", pr: "dhahab", jp: "金", p: 19 },
+    { ar: "أريكة", pr: "arīkah", jp: "ソファ", p: 19 }, { ar: "مقص", pr: "miqaṣṣ", jp: "ハサミ", p: 20 },
+    { ar: "صوص", pr: "ṣūṣ", jp: "ヒヨコ", p: 20 }, { ar: "قفص", pr: "qafaṣ", jp: "鳥かご", p: 20 },
+    { ar: "صندوق", pr: "ṣundūq", jp: "箱", p: 20 },
 
     // P.21 - P.25
-    { ar: "شمس", pr: "シャムス", jp: "太陽", p: 21 }, { ar: "صقر", pr: "サクル", jp: "タカ", p: 21 },
-    { ar: "غزال", pr: "ガザール", jp: "ガゼル", p: 21 }, { ar: "زيتون", pr: "ザイトゥーン", jp: "オリーブ", p: 21 },
-    { ar: "بصل", pr: "バサル", jp: "タマネギ", p: 22 }, { ar: "ديناصور", pr: "ディーナーソール", jp: "恐竜", p: 22 },
-    { ar: "مسجد", pr: "マスジド", jp: "モスク", p: 22 }, { ar: "سجادة", pr: "サッジャーダ", jp: "絨毯", p: 22 },
-    { ar: "عصير", pr: "アシール", jp: "ジュース", p: 23 }, { ar: "مزرعة", pr: "マズラア", jp: "農場", p: 23 },
-    { ar: "غواص", pr: "ガッワース", jp: "ダイバー", p: 23 }, { ar: "صفارة", pr: "サッファーラ", jp: "ホイッスル", p: 23 },
-    { ar: "كرز", pr: "カラズ", jp: "チェリー", p: 23 }, { ar: "عسل", pr: "アサル", jp: "ハチミツ", p: 23 },
-    { ar: "زبدة", pr: "ズブダ", jp: "バター", p: 23 }, { ar: "صاروخ", pr: "サールーフ", jp: "ロケット", p: 23 },
-    { ar: "سفينة", pr: "サフィーナ", jp: "船", p: 23 }, { ar: "زرافة", pr: "ザラーファ", jp: "キリン", p: 23 },
-    { ar: "فريق", pr: "ファリーク", jp: "チーム", p: 24 }, { ar: "برق", pr: "バルク", jp: "雷光", p: 24 },
-    { ar: "كرسي", pr: "クルスィー", jp: "椅子", p: 24 }, { ar: "مفك", pr: "ミファック", jp: "ドライバー", p: 24 },
-    { ar: "كيوي", pr: "キーウィー", jp: "キウイ", p: 25 }, { ar: "ملك", pr: "マリク", jp: "王", p: 25 },
-    { ar: "كرة", pr: "クラ", jp: "ボール", p: 25 }, { ar: "برتقال", pr: "ブルトゥカール", jp: "オレンジ", p: 25 },
-    { ar: "قفل", pr: "クフル", jp: "鍵/南京錠", p: 25 }, { ar: "قصر", pr: "カスル", jp: "宮殿", p: 25 },
-    { ar: "قرد", pr: "キルド", jp: "サル", p: 25 }, { ar: "قدم", pr: "カダム", jp: "足", p: 25 },
+    { ar: "شمس", pr: "shams", jp: "太陽", p: 21 }, { ar: "صقر", pr: "ṣaqr", jp: "タカ", p: 21 },
+    { ar: "غزال", pr: "ghazāl", jp: "ガゼル", p: 21 }, { ar: "زيتون", pr: "zaytūn", jp: "オリーブ", p: 21 },
+    { ar: "بصل", pr: "baṣal", jp: "タマネギ", p: 22 }, { ar: "ديناصور", pr: "dīnāsūr", jp: "恐竜", p: 22 },
+    { ar: "مسجد", pr: "masjid", jp: "モスク", p: 22 }, { ar: "سجادة", pr: "sajjādah", jp: "絨毯", p: 22 },
+    { ar: "عصير", pr: "ʿaṣīr", jp: "ジュース", p: 23 }, { ar: "مزرعة", pr: "mazraʿah", jp: "農場", p: 23 },
+    { ar: "غواص", pr: "ghawwāṣ", jp: "ダイバー", p: 23 }, { ar: "صفارة", pr: "ṣaffārah", jp: "ホイッスル", p: 23 },
+    { ar: "كرز", pr: "karaz", jp: "チェリー", p: 23 }, { ar: "عسل", pr: "ʿasal", jp: "ハチミツ", p: 23 },
+    { ar: "زبدة", pr: "zubdah", jp: "バター", p: 23 }, { ar: "صاروخ", pr: "ṣārūkh", jp: "ロケット", p: 23 },
+    { ar: "سفينة", pr: "safīnah", jp: "船", p: 23 }, { ar: "زرافة", pr: "zarāfah", jp: "キリン", p: 23 },
+    { ar: "فريق", pr: "farīq", jp: "チーム", p: 24 }, { ar: "برق", pr: "barq", jp: "雷光", p: 24 },
+    { ar: "كرسي", pr: "kursī", jp: "椅子", p: 24 }, { ar: "مفك", pr: "mifakk", jp: "ドライバー", p: 24 },
+    { ar: "كيوي", pr: "kīwī", jp: "キウイ", p: 25 }, { ar: "ملك", pr: "malik", jp: "王", p: 25 },
+    { ar: "كرة", pr: "kurah", jp: "ボール", p: 25 }, { ar: "برتقال", pr: "burtuqāl", jp: "オレンジ", p: 25 },
+    { ar: "قفل", pr: "qufl", jp: "鍵/南京錠", p: 25 }, { ar: "قصر", pr: "qaṣr", jp: "宮殿", p: 25 },
+    { ar: "قرد", pr: "qird", jp: "サル", p: 25 }, { ar: "قدم", pr: "qadam", jp: "足", p: 25 },
 
     // P.26 - P.30
-    { ar: "سقف", pr: "サクフ", jp: "天井", p: 26 }, { ar: "عش", pr: "ウッシュ", jp: "巣", p: 26 },
-    { ar: "ريشة", pr: "リーシャ", jp: "羽毛", p: 26 }, { ar: "شاطئ", pr: "シャーティ", jp: "海岸", p: 26 },
-    { ar: "خشب", pr: "ハシャブ", jp: "木材", p: 27 }, { ar: "عرش", pr: "アルシュ", jp: "玉座", p: 27 },
-    { ar: "مصباح", pr: "ミスバーハ", jp: "電球/ランプ", p: 27 }, { ar: "دلفين", pr: "ドゥルフィーン", jp: "イルカ", p: 27 },
-    { ar: "فلفل", pr: "フルフル", jp: "トウガラシ", p: 27 }, { ar: "صيف", pr: "サイフ", jp: "夏", p: 27 },
-    { ar: "فراولة", pr: "ファラウラ", jp: "イチゴ", p: 27 }, { ar: "فراشة", pr: "ファラーシャ", jp: "チョウ", p: 27 },
-    { ar: "شلال", pr: "シャッラール", jp: "滝", p: 27 }, { ar: "شمعة", pr: "シャムア", jp: "ローソク", p: 27 },
-    { ar: "ملفوف", pr: "マルフーフ", jp: "キャベツ", p: 27 }, { ar: "ولد", pr: "ワラド", jp: "男の子", p: 27 },
-    { ar: "أرض", pr: "アルズ", jp: "土地/地球", p: 28 }, { ar: "ضباب", pr: "ザバーブ", jp: "霧", p: 28 },
-    { ar: "ضوء", pr: "ザウ", jp: "光", p: 28 }, { ar: "ضمادة", pr: "ズマーダ", jp: "包帯", p: 28 },
-    { ar: "ظبي", pr: "ザビイ", jp: "レイヨウ", p: 29 }, { ar: "ظلمة", pr: "ズルマ", jp: "暗闇", p: 29 },
-    { ar: "مظلة", pr: "ミザッラ", jp: "傘", p: 30 }, { ar: "بيض", pr: "バイド", jp: "卵", p: 30 },
-    { ar: "ظرف", pr: "ザルフ", jp: "封筒", p: 30 }, { ar: "حافلة", pr: "ハーフィラ", jp: "バス", p: 30 },
-    { ar: "ضابط", pr: "ザービト", jp: "警察官", p: 30 }, { ar: "ظفر", pr: "ズフル", jp: "爪", p: 30 },
-    { ar: "عضلات", pr: "アザラート", jp: "筋肉", p: 30 },
+    { ar: "سقف", pr: "saqf", jp: "天井", p: 26 }, { ar: "عش", pr: "ʿushsh", jp: "巣", p: 26 },
+    { ar: "ريشة", pr: "rīshah", jp: "羽毛", p: 26 }, { ar: "شاطئ", pr: "shāṭiʾ", jp: "海岸", p: 26 },
+    { ar: "خشب", pr: "khashab", jp: "木材", p: 27 }, { ar: "عرش", pr: "ʿarsh", jp: "玉座", p: 27 },
+    { ar: "مصباح", pr: "miṣbāḥ", jp: "電球/ランプ", p: 27 }, { ar: "دلفين", pr: "dulfīn", jp: "イルカ", p: 27 },
+    { ar: "فلفل", pr: "filfil", jp: "トウガラシ", p: 27 }, { ar: "صيف", pr: "ṣayf", jp: "夏", p: 27 },
+    { ar: "فراولة", pr: "farāwilah", jp: "イチゴ", p: 27 }, { ar: "فراشة", pr: "farāshah", jp: "チョウ", p: 27 },
+    { ar: "شلال", pr: "shallāl", jp: "滝", p: 27 }, { ar: "شمعة", pr: "shamʿah", jp: "ローソク", p: 27 },
+    { ar: "ملفوف", pr: "malfūf", jp: "キャベツ", p: 27 }, { ar: "ولد", pr: "walad", jp: "男の子", p: 27 },
+    { ar: "أرض", pr: "arḍ", jp: "土地/地球", p: 28 }, { ar: "ضباب", pr: "ḍabāb", jp: "霧", p: 28 },
+    { ar: "ضوء", pr: "ḍawʾ", jp: "光", p: 28 }, { ar: "ضمادة", pr: "ḍimādah", jp: "包帯", p: 28 },
+    { ar: "ظبي", pr: "ẓaby", jp: "レイヨウ", p: 29 }, { ar: "ظلمة", pr: "ẓulmah", jp: "暗闇", p: 29 },
+    { ar: "مظلة", pr: "miẓallah", jp: "傘", p: 30 }, { ar: "بيض", pr: "bayḍ", jp: "卵", p: 30 },
+    { ar: "ظرف", pr: "ẓarf", jp: "封筒", p: 30 }, { ar: "حافلة", pr: "ḥāfilah", jp: "バス", p: 30 },
+    { ar: "ضابط", pr: "ḍābiṭ", jp: "警察官", p: 30 }, { ar: "ظفر", pr: "ẓufr", jp: "爪", p: 30 },
+    { ar: "عضلات", pr: "ʿaḍalāt", jp: "筋肉", p: 30 },
 
     // P.31 - P.35
-    { ar: "عرس", pr: "ウルス", jp: "結婚式", p: 31 }, { ar: "ضرس", pr: "ジルズ", jp: "奥歯", p: 31 },
-    { ar: "ضفدع", pr: "ジフダア", jp: "カエル", p: 31 }, { ar: "يغسل", pr: "ヤグシル", jp: "洗う", p: 32 },
-    { ar: "غواصة", pr: "ガッワーサ", jp: "潜水艦", p: 32 }, { ar: "عنكبوت", pr: "アンカブート", jp: "クモ", p: 32 },
-    { ar: "يغرد", pr: "ユガルリド", jp: "さえずる", p: 32 }, { ar: "مربع", pr: "ムラッバア", jp: "正方形", p: 32 },
-    { ar: "صمغ", pr: "サムグ", jp: "接着剤", p: 33 }, { ar: "بعوض", pr: "バウーズ", jp: "カ", p: 33 },
-    { ar: "مصنع", pr: "マスナア", jp: "工場", p: 33 }, { ar: "غابة", pr: "ガーバ", jp: "森", p: 33 },
-    { ar: "وعاء", pr: "ウィアー", jp: "容器", p: 34 }, { ar: "خيار", pr: "ヒヤール", jp: "キュウリ", p: 34 },
-    { ar: "شارع", pr: "シャーリア", jp: "通り", p: 34 }, { ar: "قناع", pr: "キナーア", jp: "仮面", p: 34 },
-    { ar: "تصوير", pr: "タスウィール", jp: "撮影", p: 35 }, { ar: "طعام", pr: "タアーム", jp: "食べ物", p: 35 },
-    { ar: "مطبخ", pr: "マトバハ", jp: "台所", p: 35 }
+    { ar: "عرس", pr: "ʿurs", jp: "結婚式", p: 31 }, { ar: "ضرس", pr: "ḍirs", jp: "奥歯", p: 31 },
+    { ar: "ضفدع", pr: "ḍifdaʿ", jp: "カエル", p: 31 }, { ar: "يغسل", pr: "yaghsil", jp: "洗う", p: 32 },
+    { ar: "غواصة", pr: "ghawwāṣah", jp: "潜水艦", p: 32 }, { ar: "عنكبوت", pr: "ʿankabūt", jp: "クモ", p: 32 },
+    { ar: "يغرد", pr: "yugharrid", jp: "さえずる", p: 32 }, { ar: "مربع", pr: "murabbaʿ", jp: "正方形", p: 32 },
+    { ar: "صمغ", pr: "ṣimgh", jp: "接着剤", p: 33 }, { ar: "بعوض", pr: "baʿūḍ", jp: "カ", p: 33 },
+    { ar: "مصنع", pr: "maṣnaʿ", jp: "工場", p: 33 }, { ar: "غابة", pr: "ghābah", jp: "森", p: 33 },
+    { ar: "وعاء", pr: "wiʿāʾ", jp: "容器", p: 34 }, { ar: "خيار", pr: "khiyār", jp: "キュウリ", p: 34 },
+    { ar: "شارع", pr: "shāriʿ", jp: "通り", p: 34 }, { ar: "قناع", pr: "qināʿ", jp: "仮面", p: 34 },
+    { ar: "تصوير", pr: "taṣwīr", jp: "撮影", p: 35 }, { ar: "طعام", pr: "ṭaʿām", jp: "食べ物", p: 35 },
+    { ar: "مطبخ", pr: "maṭbakh", jp: "台所", p: 35 }
 ];
 
-const STORAGE_KEY = 'arabic_quiz_word_stats_v1';
+const SENTENCE_STORAGE_KEY = 'arabic_quiz_sentence_stats_v1';
+const WORD_STORAGE_KEY = 'arabic_quiz_word_stats_v1';
+
+const sentences = [
+    { en: "Hi / Hello", ar: "اهلا", pr: "Ahlan" },
+    { en: "Good morning", ar: "صباح الخير", pr: "Sabah al-khayr" },
+    { en: "Good evening", ar: "مساء الخير", pr: "Masa' al-khayr" },
+    { en: "Good night", ar: "ليله سعيده", pr: "Layla sa'ida" },
+    { en: "How are you?", ar: "كيف حالك", pr: "Kayfa haluk" },
+    { en: "I am fine", ar: "انا بخير", pr: "Ana bikhayr" },
+    { en: "What is your name?", ar: "ما اسمك", pr: "Ma ismuk" },
+    { en: "My name is...", ar: "اسمي", pr: "Ismi" },
+    { en: "Where are you from?", ar: "من اين انت", pr: "Min ayna anta" },
+    { en: "I am from...", ar: "انا من", pr: "Ana min" },
+    { en: "See you soon", ar: "اراك قريبا", pr: "Arak qariban" },
+    { en: "See you tomorrow", ar: "اراك غدا", pr: "Arak ghadan" },
+    { en: "Do you speak Arabic?", ar: "تتكلم بالعربيه", pr: "Tatakallam bil-arabiyya" },
+    { en: "Can we talk?", ar: "ايمكننا ان نتحدث", pr: "Ayumkinuna an nata haddath" },
+    { en: "What about you?", ar: "ماذا عنك", pr: "Madha ank" },
+    { en: "It is useless", ar: "انه عديم الفائده", pr: "Innahu adim al-fa'ida" },
+    { en: "That is true", ar: "هذا صحيح", pr: "Hadha sahih" },
+    { en: "It is useful", ar: "انه مفيد", pr: "Innahu mufid" },
+    { en: "I am out", ar: "انا خارج", pr: "Ana kharij" },
+    { en: "Not anymore", ar: "ليس بعد الان", pr: "Laysa ba'd al-an" },
+    { en: "Listen carefully", ar: "استمع جيدا", pr: "Istami' jayyidan" },
+    { en: "I was at home", ar: "كنت في المنزل", pr: "Kuntu fil-manzil" },
+    { en: "Absolutely", ar: "صحيح تماما", pr: "Sahih tamaman" },
+    { en: "She is weak", ar: "هي ضعيفه", pr: "Hiya da'ifa" },
+    { en: "You are lazy", ar: "انت كسول", pr: "Anta kasul" },
+    { en: "Let it go", ar: "دعها تذهب", pr: "Da'ha tadhhab" },
+    { en: "Not at all", ar: "لا على الاطلاق", pr: "La ala al-itlaq" },
+    { en: "Little by little", ar: "شيئا فشيئا", pr: "Shay'an fa-shay'" },
+    { en: "I am not happy", ar: "انا لست سعيدا", pr: "Ana lastu sa'idan" },
+    { en: "Me too", ar: "انت ايضا", pr: "Anta aydan" },
+    { en: "I am sick", ar: "انا مريض", pr: "Ana marid" },
+    { en: "Stop thinking", ar: "توقف عن التفكير", pr: "Tawaqqaf an al-tafkir" },
+    { en: "I don't know", ar: "لا اعرف", pr: "La a'rif" },
+    { en: "I know him", ar: "انا اعرفه", pr: "Ana a'rifuhu" },
+    { en: "A little longer", ar: "اطول قليلا", pr: "Atwal qalilan" },
+    { en: "Don't touch me", ar: "لا تلمسني", pr: "La talmisni" },
+    { en: "Don't be late", ar: "لا تتاخر", pr: "La tata'akhar" },
+    { en: "I don't think so", ar: "انا لا اعتقد ذلك", pr: "Ana la a'taqid dhalik" },
+    { en: "You are wrong", ar: "انت مخطئ", pr: "Anta mukhti'" },
+    { en: "Go out", ar: "اخرج", pr: "Ukhruj" },
+    { en: "Are you there?", ar: "هل انت هناك", pr: "Hal anta hunak" },
+    { en: "What do you want?", ar: "ماذا تريد", pr: "Madha turid" },
+    { en: "What are you playing?", ar: "ماذا تلعب", pr: "Madha tal'ab" },
+    { en: "What do you need?", ar: "ماذا تحتاج", pr: "Madha tahtaj" },
+    { en: "What do you know?", ar: "ماذا تعرف", pr: "Madha ta'rif" },
+    { en: "What are you feeling?", ar: "ماذا تشعر", pr: "Madha tash'ur" },
+    { en: "What are you thinking?", ar: "ماذا تفكر", pr: "Madha tufakkir" },
+    { en: "What do you mean?", ar: "ماذا تقصد", pr: "Madha taqsid" },
+    { en: "I can't see", ar: "لا استطيع ان ارى", pr: "La astati' an ara" },
+    { en: "I can't say", ar: "لا استطيع ان اقول", pr: "La astati' an aqul" },
+    { en: "I can't do", ar: "لا استطيع ان افعل", pr: "La astati' an af'al" },
+    { en: "I can't live", ar: "لا استطيع ان اعيش", pr: "La astati' an a'ish" },
+    { en: "I can't drink", ar: "لا استطيع ان اشرب", pr: "La astati' an ashrab" },
+    { en: "I can't find", ar: "لا استطيع ان اجد", pr: "La astati' an ajid" },
+    { en: "I can't remember", ar: "لا استطيع ان اتذكر", pr: "La astati' an atadhakkar" },
+    { en: "I can't wait", ar: "لا استطيع ان انتظر", pr: "La astati' an antazir" },
+    { en: "Do you like it?", ar: "هل تحب ذلك", pr: "Hal tuhibbu dhalik" },
+    { en: "Try before you give up", ar: "قبل ان تستسلم حاول", pr: "Qabla an tastaslim hawil" },
+    { en: "I said I am sorry", ar: "لقد قلت انا اسف", pr: "Laqad qultu ana asif" },
+    { en: "Do what you want", ar: "افعل ما تريد", pr: "If'al ma turid" },
+    { en: "I do what I want", ar: "افعل ما اريد", pr: "Af'alu ma urid" },
+    { en: "I am studying English", ar: "انا ادرس الانجليزيه", pr: "Ana adrus al-injiliziyya" },
+    { en: "Don't forget", ar: "لا تنسى ذلك", pr: "La tansa dhalik" },
+    { en: "Can you drive?", ar: "يمكنك ان تقود السياره", pr: "Yumkinuka an taqud al-sayyara" },
+    { en: "I don't know why", ar: "انا لا اعرف لماذا", pr: "Ana la a'rif limadha" },
+    { en: "I will trust you", ar: "سوف اثق بك", pr: "Sawfa athiqu bik" },
+    { en: "I will follow you", ar: "سوف اتبعك", pr: "Sawfa atba'uk" },
+    { en: "I will thank you", ar: "سوف اشكرك", pr: "Sawfa ashkuruk" },
+    { en: "I will listen to you", ar: "سوف استمع اليك", pr: "Sawfa astami' ilayk" },
+    { en: "Don't be afraid", ar: "لا تخيفني", pr: "La tukhifni" },
+    { en: "Don't cry", ar: "لا تبكي", pr: "La tabki" },
+    { en: "Don't worry", ar: "لا تقلق", pr: "La tatlaq" },
+    { en: "Don't give up", ar: "لا تستسلم", pr: "La tastaslim" },
+    { en: "I live here", ar: "انا اعيش هنا", pr: "Ana a'ish huna" },
+    { en: "I am at the airport", ar: "انا في المطار", pr: "Ana fil-matar" },
+    { en: "I love you", ar: "انا احبك", pr: "Ana uhibbuk" },
+    { en: "I miss you", ar: "انا افتقدك", pr: "Ana aftaqiduk" },
+    { en: "Thank you", ar: "شكرا لك", pr: "Shukran lak" },
+    { en: "Good bye", ar: "مع السلامه", pr: "Ma'a al-salama" }
+];
+
 let wordStats = {};
-let selectedPageFilter = "all"; // 現在のページ絞り込み設定
-
-// フィルター生成（5ページ単位＋単一ページ）
-function setupFilterOptions() {
-    const select = document.getElementById('page-filter');
-    const maxPage = Math.max(...words.map(w => w.p));
-    
-    // 5ページ単位のブロックを追加
-    for (let i = 1; i <= maxPage; i += 5) {
-        let end = Math.min(i + 4, maxPage);
-        let opt = document.createElement('option');
-        opt.value = `range_${i}_${end}`;
-        opt.textContent = `P.${i} 〜 P.${end}`;
-        select.appendChild(opt);
-    }
-
-    // 個別ページを追加
-    let group = document.createElement('optgroup');
-    group.label = "--- 個別ページ ---";
-    for (let i = 1; i <= maxPage; i++) {
-        let opt = document.createElement('option');
-        opt.value = `page_${i}`;
-        opt.textContent = `P.${i} のみ`;
-        group.appendChild(opt);
-    }
-    select.appendChild(group);
-}
-
-function loadProgress() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        try {
-            wordStats = JSON.parse(saved);
-        } catch (e) {
-            initStats();
-        }
-    } else {
-        initStats();
-    }
-}
+let sentenceStats = {};
 
 function initStats() {
     wordStats = {};
     words.forEach((_, index) => {
         wordStats[index] = { correct: 0, total: 0 };
     });
+
+    sentenceStats = {};
+    sentences.forEach((_, index) => {
+        sentenceStats[index] = { correct: 0, total: 0 };
+    });
+}
+
+function loadProgress() {
+    try {
+        const savedWords = localStorage.getItem(WORD_STORAGE_KEY);
+        const savedSentences = localStorage.getItem(SENTENCE_STORAGE_KEY);
+
+        if (savedWords) {
+            const parsed = JSON.parse(savedWords);
+            words.forEach((_, index) => {
+                if (parsed[index]) {
+                    wordStats[index] = {
+                        correct: Number(parsed[index].correct) || 0,
+                        total: Number(parsed[index].total) || 0
+                    };
+                }
+            });
+        }
+
+        if (savedSentences) {
+            const parsed = JSON.parse(savedSentences);
+            sentences.forEach((_, index) => {
+                if (parsed[index]) {
+                    sentenceStats[index] = {
+                        correct: Number(parsed[index].correct) || 0,
+                        total: Number(parsed[index].total) || 0
+                    };
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("進捗データの読み込みに失敗しました:", e);
+    }
 }
 
 function saveProgress() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(wordStats));
+    try {
+        localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
+        localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
+    } catch (e) {
+        console.warn("進捗データの保存に失敗しました:", e);
+    }
 }
 
-window.resetProgress = function() {
-    if (confirm("これまでの解答データ・進捗がすべてリセットされます。よろしいですか？")) {
-        localStorage.removeItem(STORAGE_KEY);
-        initStats();
-        nextQuestion();
-    }
-};
-
+let quizMode = "words";
 let currentIdx = null;
 let currentWord = null;
+let currentSentenceIdx = null;
+let currentSentence = null;
 let currentMode = "choice";
 let correctAnswer = "";
 
-// 現在のフィルター条件に合う単語インデックスの配列を返す
-function getFilteredIndices() {
-    if (selectedPageFilter === "all") {
-        return words.map((_, idx) => idx);
-    } else if (selectedPageFilter.startsWith("range_")) {
-        const [, start, end] = selectedPageFilter.split("_").map(Number);
-        return words.map((w, idx) => (w.p >= start && w.p <= end) ? idx : null).filter(v => v !== null);
-    } else if (selectedPageFilter.startsWith("page_")) {
-        const page = Number(selectedPageFilter.split("_")[1]);
-        return words.map((w, idx) => (w.p === page) ? idx : null).filter(v => v !== null);
-    }
-    return words.map((_, idx) => idx);
+function getCurrentStats() {
+    return quizMode === "sentences" ? sentenceStats : wordStats;
 }
 
-window.onPageFilterChange = function() {
-    selectedPageFilter = document.getElementById('page-filter').value;
-    nextQuestion();
-};
-
 function updateProgress() {
-    const targetIndices = getFilteredIndices();
+    const stats = getCurrentStats();
+    const totalItems = quizMode === "sentences" ? sentences.length : words.length;
+
     let unattempted = 0;
     let weak = 0;
     let review = 0;
     let mastered = 0;
 
-    targetIndices.forEach(idx => {
-        let stat = wordStats[idx] || { correct: 0, total: 0 };
+    Object.values(stats).forEach(stat => {
         if (stat.total === 0) {
             unattempted++;
         } else {
-            let rate = stat.correct / stat.total;
+            const rate = stat.correct / stat.total;
             if (rate < 0.4) weak++;
             else if (rate < 0.8) review++;
             else mastered++;
         }
     });
 
-    const total = targetIndices.length;
     document.getElementById('count-unattempted').textContent = unattempted;
     document.getElementById('count-weak').textContent = weak;
     document.getElementById('count-review').textContent = review;
     document.getElementById('count-mastered').textContent = mastered;
 
-    document.getElementById('bar-unattempted').style.width = `${total ? (unattempted/total)*100 : 0}%`;
-    document.getElementById('bar-weak').style.width = `${total ? (weak/total)*100 : 0}%`;
-    document.getElementById('bar-review').style.width = `${total ? (review/total)*100 : 0}%`;
-    document.getElementById('bar-mastered').style.width = `${total ? (mastered/total)*100 : 0}%`;
+    document.getElementById('bar-unattempted').style.width = `${(unattempted / totalItems) * 100}%`;
+    document.getElementById('bar-weak').style.width = `${(weak / totalItems) * 100}%`;
+    document.getElementById('bar-review').style.width = `${(review / totalItems) * 100}%`;
+    document.getElementById('bar-mastered').style.width = `${(mastered / totalItems) * 100}%`;
 
-    let percent = total ? Math.round((mastered / total) * 100) : 0;
+    const percent = Math.round((mastered / totalItems) * 100);
     document.getElementById('master-percent').textContent = `${percent}%`;
-
-    // 範囲のテキスト更新
-    const filterElem = document.getElementById('page-filter');
-    const selectedText = filterElem.options[filterElem.selectedIndex].text;
-    document.getElementById('scope-text').textContent = selectedText.replace("の単語", "");
 }
 
-window.nextQuestion = function() {
-    updateProgress();
+function updateModeUI() {
+    const select = document.getElementById('quiz-mode-select');
+    const pageBadge = document.getElementById('page-badge');
 
-    const targetIndices = getFilteredIndices();
-    if (targetIndices.length === 0) return;
+    if (quizMode === "sentences") {
+        select.value = "sentences";
+        pageBadge.textContent = `例文 (${sentences.length}文)`;
+    } else if (currentWord) {
+        select.value = "words";
+        pageBadge.textContent = `P.${currentWord.p} (全${words.length}語)`;
+    }
+}
 
-    let weightedIndices = [];
-    targetIndices.forEach(idx => {
-        let stat = wordStats[idx] || { correct: 0, total: 0 };
-        let rate = stat.total === 0 ? 0 : stat.correct / stat.total;
-        let weight = Math.ceil((1.1 - rate) * 10);
+window.onQuizModeChange = function() {
+    quizMode = document.getElementById('quiz-mode-select').value;
+    currentIdx = null;
+    currentWord = null;
+    currentSentenceIdx = null;
+    currentSentence = null;
+    nextQuestion();
+};
+
+window.resetProgress = function() {
+    if (!confirm("単語と例文の学習履歴をすべてリセットしますか？")) return;
+
+    initStats();
+    saveProgress();
+    nextQuestion();
+};
+
+function pickWeightedIndex(items, stats) {
+    const weightedIndices = [];
+
+    items.forEach((_, idx) => {
+        const stat = stats[idx];
+        const rate = stat.total === 0 ? 0 : stat.correct / stat.total;
+        const weight = Math.max(1, Math.ceil((1.1 - rate) * 10));
+
         for (let i = 0; i < weight; i++) {
             weightedIndices.push(idx);
         }
     });
 
-    currentIdx = weightedIndices[Math.floor(Math.random() * weightedIndices.length)];
+    return weightedIndices[Math.floor(Math.random() * weightedIndices.length)];
+}
+
+window.nextQuestion = function() {
+    if (quizMode === "sentences") {
+        nextSentenceQuestion();
+        return;
+    }
+
+    nextWordQuestion();
+};
+
+function nextWordQuestion() {
+    updateProgress();
+
+    currentIdx = pickWeightedIndex(words, wordStats);
     currentWord = words[currentIdx];
 
-    const stat = wordStats[currentIdx] || { correct: 0, total: 0 };
+    const stat = wordStats[currentIdx];
     const rate = stat.total === 0 ? -1 : (stat.correct / stat.total);
 
     const rateBadge = document.getElementById('rate-badge');
+
     if (rate === -1) {
         currentMode = "choice";
         rateBadge.textContent = "未挑戦 (4択)";
         rateBadge.className = "rate-badge rate-low";
     } else if (rate < 0.4) {
         currentMode = "choice";
-        rateBadge.textContent = `正答率 ${(rate*100).toFixed(0)}% (4択)`;
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
         rateBadge.className = "rate-badge rate-low";
     } else if (rate < 0.8) {
         currentMode = "translate";
-        rateBadge.textContent = `正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (日本語入力)`;
         rateBadge.className = "rate-badge rate-mid";
     } else {
         currentMode = "write";
-        rateBadge.textContent = `正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (アラビア語入力)`;
         rateBadge.className = "rate-badge rate-high";
     }
 
-    document.getElementById('page-badge').textContent = `P.${currentWord.p}`;
+    updateModeUI();
     document.getElementById('feedback-msg').textContent = '';
+    document.getElementById('feedback-msg').style.color = '';
     document.getElementById('next-btn').style.display = 'none';
 
-    setupUI();
-};
+    setupWordUI();
+}
 
-function setupUI() {
+function nextSentenceQuestion() {
+    updateProgress();
+
+    currentSentenceIdx = pickWeightedIndex(sentences, sentenceStats);
+    currentSentence = sentences[currentSentenceIdx];
+
+    const stat = sentenceStats[currentSentenceIdx];
+    const rate = stat.total === 0 ? -1 : (stat.correct / stat.total);
+    const rateBadge = document.getElementById('rate-badge');
+
+    if (rate === -1) {
+        rateBadge.textContent = "未挑戦 (4択)";
+        rateBadge.className = "rate-badge rate-low";
+    } else if (rate < 0.4) {
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
+        rateBadge.className = "rate-badge rate-low";
+    } else if (rate < 0.8) {
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
+        rateBadge.className = "rate-badge rate-mid";
+    } else {
+        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
+        rateBadge.className = "rate-badge rate-high";
+    }
+
+    updateModeUI();
+
     const qElem = document.getElementById('question-word');
     const pElem = document.getElementById('pronunciation-word');
     const titleElem = document.getElementById('mode-title');
     const area = document.getElementById('interactive-area');
+
+    titleElem.textContent = "【例文テスト】英語に対応するアラビア語を選んでください";
+    qElem.textContent = currentSentence.en;
+    qElem.style.direction = "ltr";
+    pElem.textContent = "";
+    area.innerHTML = "";
+    document.getElementById('feedback-msg').textContent = "";
+    document.getElementById('feedback-msg').style.color = "";
+    document.getElementById('next-btn').style.display = 'none';
+
+    correctAnswer = currentSentence.ar;
+
+    const choices = [currentSentence.ar];
+    while (choices.length < 4) {
+        const candidate = sentences[Math.floor(Math.random() * sentences.length)].ar;
+        if (!choices.includes(candidate)) {
+            choices.push(candidate);
+        }
+    }
+    choices.sort(() => Math.random() - 0.5);
+
+    const grid = document.createElement('div');
+    grid.className = 'options-grid';
+
+    choices.forEach(choice => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = choice;
+        btn.style.direction = "rtl";
+        btn.onclick = function() {
+            checkSentenceAnswer(choice, btn);
+        };
+        grid.appendChild(btn);
+    });
+
+    const passBtn = document.createElement('button');
+    passBtn.className = 'option-btn pass-btn';
+    passBtn.textContent = "❓ 分からない (パス)";
+    passBtn.onclick = function() {
+        checkSentenceAnswer(null, passBtn);
+    };
+    grid.appendChild(passBtn);
+
+    area.appendChild(grid);
+}
+
+function setupWordUI() {
+    const qElem = document.getElementById('question-word');
+    const pElem = document.getElementById('pronunciation-word');
+    const titleElem = document.getElementById('mode-title');
+    const area = document.getElementById('interactive-area');
+
     area.innerHTML = '';
 
     if (currentMode === "choice") {
@@ -578,27 +754,33 @@ function setupUI() {
         pElem.textContent = `【発音: ${currentWord.pr}】`;
         correctAnswer = currentWord.jp;
 
-        let choices = [currentWord.jp];
+        const choices = [currentWord.jp];
         while (choices.length < 4) {
-            let rJp = words[Math.floor(Math.random() * words.length)].jp;
+            const rJp = words[Math.floor(Math.random() * words.length)].jp;
             if (!choices.includes(rJp)) choices.push(rJp);
         }
+
         choices.sort(() => Math.random() - 0.5);
 
-        let grid = document.createElement('div');
+        const grid = document.createElement('div');
         grid.className = 'options-grid';
+
         choices.forEach(choice => {
-            let btn = document.createElement('button');
+            const btn = document.createElement('button');
             btn.className = 'option-btn';
             btn.textContent = choice;
-            btn.onclick = function() { checkAnswer(choice, btn); };
+            btn.onclick = function() {
+                checkAnswer(choice, btn);
+            };
             grid.appendChild(btn);
         });
 
-        let passBtn = document.createElement('button');
+        const passBtn = document.createElement('button');
         passBtn.className = 'option-btn pass-btn';
         passBtn.textContent = "❓ 分からない (パス)";
-        passBtn.onclick = function() { checkAnswer(null, passBtn); };
+        passBtn.onclick = function() {
+            checkAnswer(null, passBtn);
+        };
         grid.appendChild(passBtn);
 
         area.appendChild(grid);
@@ -623,11 +805,11 @@ function setupUI() {
         titleElem.textContent = "【上級モード】アラビア語で記述してください";
         qElem.textContent = currentWord.jp;
         qElem.style.direction = "ltr";
-        pElem.textContent = ""; 
+        pElem.textContent = "";
         correctAnswer = currentWord.ar;
 
         area.innerHTML = `
-            <input type="text" id="user-input" class="input-box" placeholder="アラビア語を入力..." autocomplete="off">
+            <input type="text" id="user-input" class="input-box" placeholder="アラビア語を入力..." autocomplete="off" dir="rtl">
             <br>
             <div class="btn-group">
                 <button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button>
@@ -646,8 +828,8 @@ function setupUI() {
 }
 
 window.checkAnswer = function(userAns, btnElement) {
-    let isCorrect = (userAns === correctAnswer);
-    recordResult(isCorrect);
+    const isCorrect = (userAns === correctAnswer);
+    recordWordResult(isCorrect);
 
     const feedback = document.getElementById('feedback-msg');
     const allBtns = document.querySelectorAll('.option-btn');
@@ -661,6 +843,7 @@ window.checkAnswer = function(userAns, btnElement) {
         if (btnElement && userAns !== null) btnElement.classList.add('wrong');
         feedback.textContent = `❌ 正解は「${correctAnswer}」`;
         feedback.style.color = '#dc2626';
+
         allBtns.forEach(b => {
             if (b.textContent === correctAnswer) b.classList.add('correct');
         });
@@ -670,20 +853,56 @@ window.checkAnswer = function(userAns, btnElement) {
     document.getElementById('next-btn').style.display = 'inline-block';
 };
 
+window.checkSentenceAnswer = function(userAns, btnElement) {
+    const isCorrect = (userAns === correctAnswer);
+    recordSentenceResult(isCorrect);
+
+    const feedback = document.getElementById('feedback-msg');
+    const allBtns = document.querySelectorAll('.option-btn');
+    allBtns.forEach(b => b.disabled = true);
+
+    if (isCorrect) {
+        if (btnElement) btnElement.classList.add('correct');
+        feedback.textContent = '正解！';
+        feedback.style.color = '#16a34a';
+    } else {
+        if (btnElement && userAns !== null) btnElement.classList.add('wrong');
+        feedback.textContent = `❌ 正解は「${correctAnswer}」`;
+        feedback.style.color = '#dc2626';
+
+        allBtns.forEach(b => {
+            if (b.textContent === correctAnswer) b.classList.add('correct');
+        });
+    }
+
+    document.getElementById('pronunciation-word').textContent =
+        `【発音: ${currentSentence.pr}】`;
+
+    updateProgress();
+    document.getElementById('next-btn').style.display = 'inline-block';
+};
+
 window.checkTypedAnswer = function(isSkip) {
     const input = document.getElementById('user-input');
     if (!input) return;
+
     const val = input.value.trim();
     if (!isSkip && !val) return;
 
     input.disabled = true;
-    let isCorrect = !isSkip && (val === correctAnswer || (currentMode === "translate" && correctAnswer.includes(val)));
-    recordResult(isCorrect);
+
+    const isCorrect =
+        !isSkip &&
+        (val === correctAnswer ||
+        (currentMode === "translate" && correctAnswer.includes(val)));
+
+    recordWordResult(isCorrect);
 
     const feedback = document.getElementById('feedback-msg');
-    
+
     if (currentMode === "write") {
-        document.getElementById('pronunciation-word').textContent = `【発音: ${currentWord.pr}】`;
+        document.getElementById('pronunciation-word').textContent =
+            `【発音: ${currentWord.pr}】`;
     }
 
     if (isCorrect) {
@@ -698,21 +917,25 @@ window.checkTypedAnswer = function(isSkip) {
     document.getElementById('next-btn').style.display = 'inline-block';
 };
 
-function recordResult(isCorrect) {
-    if (!wordStats[currentIdx]) {
-        wordStats[currentIdx] = { correct: 0, total: 0 };
-    }
+function recordWordResult(isCorrect) {
     wordStats[currentIdx].total += 1;
     if (isCorrect) wordStats[currentIdx].correct += 1;
-    
+    saveProgress();
+}
+
+function recordSentenceResult(isCorrect) {
+    sentenceStats[currentSentenceIdx].total += 1;
+    if (isCorrect) sentenceStats[currentSentenceIdx].correct += 1;
     saveProgress();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    setupFilterOptions();
+    initStats();
     loadProgress();
+    updateProgress();
     nextQuestion();
 });
+
 </script>
 
 </body>
