@@ -581,6 +581,10 @@ let correctAnswer = "";
 let shadowingQueue = [];
 let shadowingIndex = 0;
 let shadowingAwaitingTest = false;
+let shadowingBatch = [];
+let shadowingBatchPos = 0;
+let shadowingTestPos = 0;
+const SHADOWING_BATCH_SIZE = 5;
 
 function getScopedWordIndices() {
     if (wordScope === "all") return words.map((_, i) => i);
@@ -696,7 +700,7 @@ function updateModeUI() {
 window.onQuizModeChange=function(){
     quizMode=document.getElementById('quiz-mode-select').value;
     currentIdx=null; currentWord=null; currentSentenceIdx=null; currentSentence=null;
-    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false;
+    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false; shadowingBatch=[]; shadowingBatchPos=0; shadowingTestPos=0;
     nextQuestion();
 };
 
@@ -704,7 +708,7 @@ window.onWordScopeChange=function(){
     const page=document.getElementById('word-page-select').value;
     const scope=document.getElementById('word-scope-select').value;
     wordScope=(page !== 'all') ? page : scope;
-    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false;
+    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false; shadowingBatch=[]; shadowingBatchPos=0; shadowingTestPos=0;
     updateProgress();
     nextQuestion();
 };
@@ -768,49 +772,45 @@ function nextSentenceQuestion(){
 
 function nextShadowingQuestion(){
     updateProgress();
-    if (!shadowingQueue.length || shadowingIndex >= shadowingQueue.length) {
-        shadowingQueue=[...getScopedWordIndices()].sort(()=>Math.random()-0.5);
-        shadowingIndex=0;
+    if (!shadowingBatch.length || shadowingBatchPos >= shadowingBatch.length) {
+        if (!shadowingQueue.length || shadowingIndex >= shadowingQueue.length) {
+            shadowingQueue=[...getScopedWordIndices()].sort(()=>Math.random()-0.5);
+            shadowingIndex=0;
+        }
+        shadowingBatch=shadowingQueue.slice(shadowingIndex, shadowingIndex+SHADOWING_BATCH_SIZE);
+        shadowingBatchPos=0; shadowingTestPos=0; shadowingIndex+=shadowingBatch.length;
     }
-    currentIdx=shadowingQueue[shadowingIndex];
-    currentWord=words[currentIdx];
-    shadowingAwaitingTest=false;
+    currentIdx=shadowingBatch[shadowingBatchPos]; currentWord=words[currentIdx]; shadowingAwaitingTest=false;
     updateModeUI(); clearQuestionArea();
     const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
-    title.textContent=`【シャドーイング ${shadowingIndex+1}/${shadowingQueue.length}】音声を聞いて発音してください`;
+    title.textContent=`【シャドーイング ${shadowingBatchPos+1}/${shadowingBatch.length}】発音を確認して声に出してください`;
     q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`;
     const card=document.createElement('div'); card.className='shadowing-card';
-    card.innerHTML=`<div class="shadowing-arabic">${currentWord.ar}</div><div class="shadowing-pronunciation">${currentWord.pr}</div>`;
-    const speak=document.createElement('button'); speak.className='shadowing-btn submit-btn'; speak.textContent='🔊 アラビア語を再生'; speak.onclick=()=>speakArabic(currentWord.ar);
-    const done=document.createElement('button'); done.className='shadowing-btn option-btn'; done.textContent='シャドーイング完了 → テスト'; done.onclick=()=>startShadowingTest();
-    card.appendChild(speak); card.appendChild(done); area.appendChild(card);
-    speakArabic(currentWord.ar);
+    card.innerHTML=`<div class="shadowing-arabic">${currentWord.ar}</div><div class="shadowing-meaning">意味：${currentWord.jp}</div><div class="shadowing-pronunciation">${currentWord.pr}</div>`;
+    const done=document.createElement('button'); done.className='shadowing-btn option-btn'; done.textContent=shadowingBatchPos+1<shadowingBatch.length?'シャドーイング完了 → 次の単語':'シャドーイング完了 → テスト開始'; done.onclick=completeShadowingWord;
+    card.appendChild(done); area.appendChild(card);
 }
 
-function startShadowingTest(){
-    shadowingAwaitingTest=true;
-    const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
-    const badge=document.getElementById('rate-badge');
+function completeShadowingWord(){
+    shadowingBatchPos++;
+    if(shadowingBatchPos<shadowingBatch.length) nextShadowingQuestion();
+    else { shadowingTestPos=0; startShadowingBatchTest(); }
+}
+
+function startShadowingBatchTest(){
+    shadowingAwaitingTest=true; currentIdx=shadowingBatch[shadowingTestPos]; currentWord=words[currentIdx];
+    const stat=wordStats[currentIdx], rate=stat.total===0?-1:stat.correct/stat.total, badge=document.getElementById('rate-badge');
     if(rate===-1){currentMode='choice';badge.textContent='未挑戦 (4択)';badge.className='rate-badge rate-low';}
     else if(rate<0.4){currentMode='choice';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className='rate-badge rate-low';}
     else if(rate<0.8){currentMode='translate';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;badge.className='rate-badge rate-mid';}
     else {currentMode='write';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className='rate-badge rate-high';}
-    clearQuestionArea(); setupWordUI();
-    document.getElementById('mode-title').textContent='【シャドーイング後テスト】';
+    clearQuestionArea(); setupWordUI(); document.getElementById('mode-title').textContent=`【シャドーイング後テスト ${shadowingTestPos+1}/${shadowingBatch.length}】`;
 }
 
 function finishShadowingItem(){
-    shadowingIndex++;
-    shadowingAwaitingTest=false;
-    if(shadowingIndex>=shadowingQueue.length) shadowingQueue=[];
-    nextQuestion();
-}
-
-function speakArabic(text){
-    if(!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(text); u.lang='ar-SA'; u.rate=0.78; u.pitch=1;
-    window.speechSynthesis.speak(u);
+    shadowingTestPos++;
+    if(shadowingTestPos<shadowingBatch.length) startShadowingBatchTest();
+    else { shadowingBatch=[]; shadowingBatchPos=0; shadowingTestPos=0; nextQuestion(); }
 }
 
 function clearQuestionArea(){
@@ -825,6 +825,10 @@ function clearQuestionArea(){
 function setupWordUI(){
     const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
     area.innerHTML='';
+    const imageWrap=document.createElement('div'); imageWrap.className='word-image-wrap';
+    const imageLink=document.createElement('a'); imageLink.className='image-search-link'; imageLink.target='_blank'; imageLink.rel='noopener noreferrer';
+    imageLink.href='https://www.google.com/search?tbm=isch&q='+encodeURIComponent(currentWord.ar+' '+currentWord.jp);
+    imageLink.textContent='Google画像検索で画像を見る'; imageWrap.appendChild(imageLink); area.appendChild(imageWrap);
     if(currentMode==='choice'){
         title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・4択】正しい日本語を選んでください':'【4択モード】正しい日本語を選んでください';
         q.textContent=currentWord.ar;q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
@@ -978,3 +982,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
+
