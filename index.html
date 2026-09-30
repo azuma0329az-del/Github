@@ -205,6 +205,33 @@
             font-weight: bold;
             min-height: 25px;
         }
+        .shadowing-card {
+            border: 2px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 18px;
+            margin-top: 10px;
+            background: #f8fafc;
+        }
+        .shadowing-arabic {
+            font-size: 2rem;
+            font-weight: bold;
+            direction: rtl;
+            margin: 8px 0;
+        }
+        .shadowing-pronunciation {
+            color: #0284c7;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 14px;
+        }
+        .shadowing-btn {
+            margin: 5px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
 
     </style>
 </head>
@@ -216,6 +243,24 @@
         <select id="quiz-mode-select" class="page-select" onchange="onQuizModeChange()">
             <option value="words">単語テスト</option>
             <option value="sentences">例文テスト</option>
+            <option value="shadowing">シャドーイング → 単語テスト</option>
+        </select>
+    </div>
+
+    <div class="mode-select-container" id="word-scope-container">
+        <span class="filter-label">📚 出題範囲</span>
+        <select id="word-scope-select" class="page-select" onchange="onWordScopeChange()">
+            <option value="all">全ページ（P.1–35）</option>
+            <option value="section:1-5">P.1–5</option>
+            <option value="section:6-10">P.6–10</option>
+            <option value="section:11-15">P.11–15</option>
+            <option value="section:16-20">P.16–20</option>
+            <option value="section:21-25">P.21–25</option>
+            <option value="section:26-30">P.26–30</option>
+            <option value="section:31-35">P.31–35</option>
+        </select>
+        <select id="word-page-select" class="page-select" onchange="onWordScopeChange()" style="margin-top:8px">
+            <option value="all">ページ指定：すべて</option>
         </select>
     </div>
 
@@ -526,305 +571,279 @@ function saveProgress() {
 }
 
 let quizMode = "words";
+let wordScope = "all";
 let currentIdx = null;
 let currentWord = null;
 let currentSentenceIdx = null;
 let currentSentence = null;
 let currentMode = "choice";
 let correctAnswer = "";
+let shadowingQueue = [];
+let shadowingIndex = 0;
+let shadowingAwaitingTest = false;
 
-function getCurrentStats() {
-    return quizMode === "sentences" ? sentenceStats : wordStats;
+function getScopedWordIndices() {
+    if (wordScope === "all") return words.map((_, i) => i);
+    if (wordScope.startsWith("page:")) {
+        const p = Number(wordScope.split(":")[1]);
+        return words.map((w, i) => w.p === p ? i : -1).filter(i => i >= 0);
+    }
+    if (wordScope.startsWith("section:")) {
+        const [a,b] = wordScope.split(":")[1].split("-").map(Number);
+        return words.map((w, i) => w.p >= a && w.p <= b ? i : -1).filter(i => i >= 0);
+    }
+    return words.map((_, i) => i);
 }
+
+function populatePageSelector() {
+    const select = document.getElementById('word-page-select');
+    if (!select) return;
+    const old = select.value;
+    select.innerHTML = '<option value="all">ページ指定：すべて</option>';
+    for (let p = 1; p <= 35; p++) {
+        const opt = document.createElement('option');
+        opt.value = `page:${p}`;
+        opt.textContent = `P.${p}`;
+        select.appendChild(opt);
+    }
+    if ([...select.options].some(o => o.value === old)) select.value = old;
+}
+
+function initStats() {
+    wordStats = {};
+    words.forEach((_, index) => { wordStats[index] = { correct: 0, total: 0 }; });
+    sentenceStats = {};
+    sentences.forEach((_, index) => { sentenceStats[index] = { correct: 0, total: 0 }; });
+}
+
+function loadProgress() {
+    try {
+        const savedWords = localStorage.getItem(WORD_STORAGE_KEY);
+        const savedSentences = localStorage.getItem(SENTENCE_STORAGE_KEY);
+        if (savedWords) {
+            const parsed = JSON.parse(savedWords);
+            words.forEach((_, index) => {
+                if (parsed[index]) wordStats[index] = { correct: Number(parsed[index].correct)||0, total: Number(parsed[index].total)||0 };
+            });
+        }
+        if (savedSentences) {
+            const parsed = JSON.parse(savedSentences);
+            sentences.forEach((_, index) => {
+                if (parsed[index]) sentenceStats[index] = { correct: Number(parsed[index].correct)||0, total: Number(parsed[index].total)||0 };
+            });
+        }
+    } catch (e) { console.warn("進捗データの読み込みに失敗しました:", e); }
+}
+
+function saveProgress() {
+    try {
+        localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
+        localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
+    } catch (e) { console.warn("進捗データの保存に失敗しました:", e); }
+}
+
+function getCurrentStats() { return quizMode === "sentences" ? sentenceStats : wordStats; }
 
 function updateProgress() {
     const stats = getCurrentStats();
-    const totalItems = quizMode === "sentences" ? sentences.length : words.length;
-
-    let unattempted = 0;
-    let weak = 0;
-    let review = 0;
-    let mastered = 0;
-
-    Object.values(stats).forEach(stat => {
-        if (stat.total === 0) {
-            unattempted++;
-        } else {
-            const rate = stat.correct / stat.total;
-            if (rate < 0.4) weak++;
-            else if (rate < 0.8) review++;
-            else mastered++;
-        }
+    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : getScopedWordIndices();
+    const totalItems = indices.length || 1;
+    let unattempted=0, weak=0, review=0, mastered=0;
+    indices.forEach(i => {
+        const stat=stats[i];
+        if (stat.total===0) unattempted++;
+        else { const rate=stat.correct/stat.total; if(rate<0.4) weak++; else if(rate<0.8) review++; else mastered++; }
     });
+    document.getElementById('count-unattempted').textContent=unattempted;
+    document.getElementById('count-weak').textContent=weak;
+    document.getElementById('count-review').textContent=review;
+    document.getElementById('count-mastered').textContent=mastered;
+    document.getElementById('bar-unattempted').style.width=`${unattempted/totalItems*100}%`;
+    document.getElementById('bar-weak').style.width=`${weak/totalItems*100}%`;
+    document.getElementById('bar-review').style.width=`${review/totalItems*100}%`;
+    document.getElementById('bar-mastered').style.width=`${mastered/totalItems*100}%`;
+    document.getElementById('master-percent').textContent=`${Math.round(mastered/totalItems*100)}%`;
+}
 
-    document.getElementById('count-unattempted').textContent = unattempted;
-    document.getElementById('count-weak').textContent = weak;
-    document.getElementById('count-review').textContent = review;
-    document.getElementById('count-mastered').textContent = mastered;
-
-    document.getElementById('bar-unattempted').style.width = `${(unattempted / totalItems) * 100}%`;
-    document.getElementById('bar-weak').style.width = `${(weak / totalItems) * 100}%`;
-    document.getElementById('bar-review').style.width = `${(review / totalItems) * 100}%`;
-    document.getElementById('bar-mastered').style.width = `${(mastered / totalItems) * 100}%`;
-
-    const percent = Math.round((mastered / totalItems) * 100);
-    document.getElementById('master-percent').textContent = `${percent}%`;
+function updateScopeUI() {
+    const container=document.getElementById('word-scope-container');
+    if (container) container.style.display=(quizMode === "sentences") ? 'none' : 'block';
+    const scope=document.getElementById('word-scope-select');
+    const page=document.getElementById('word-page-select');
+    if (!scope || !page) return;
+    if (wordScope.startsWith('page:')) {
+        scope.value='all'; page.value=wordScope;
+    } else { scope.value=wordScope; page.value='all'; }
 }
 
 function updateModeUI() {
-    const select = document.getElementById('quiz-mode-select');
-    const pageBadge = document.getElementById('page-badge');
-
+    const select=document.getElementById('quiz-mode-select');
+    const pageBadge=document.getElementById('page-badge');
     if (quizMode === "sentences") {
-        select.value = "sentences";
-        pageBadge.textContent = `例文 (${sentences.length}文)`;
+        select.value="sentences";
+        pageBadge.textContent=`例文 (${sentences.length}文)`;
+    } else if (quizMode === "shadowing") {
+        select.value="shadowing";
+        const ids=getScopedWordIndices();
+        pageBadge.textContent=`シャドーイング ${ids.length}語`;
     } else if (currentWord) {
-        select.value = "words";
-        pageBadge.textContent = `P.${currentWord.p} (全${words.length}語)`;
+        select.value="words";
+        pageBadge.textContent=`P.${currentWord.p}（範囲 ${getScopedWordIndices().length}語）`;
     }
+    updateScopeUI();
 }
 
-window.onQuizModeChange = function() {
-    quizMode = document.getElementById('quiz-mode-select').value;
-    currentIdx = null;
-    currentWord = null;
-    currentSentenceIdx = null;
-    currentSentence = null;
+window.onQuizModeChange=function(){
+    quizMode=document.getElementById('quiz-mode-select').value;
+    currentIdx=null; currentWord=null; currentSentenceIdx=null; currentSentence=null;
+    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false;
     nextQuestion();
 };
 
-window.resetProgress = function() {
-    if (!confirm("単語と例文の学習履歴をすべてリセットしますか？")) return;
-
-    initStats();
-    saveProgress();
+window.onWordScopeChange=function(){
+    const page=document.getElementById('word-page-select').value;
+    const scope=document.getElementById('word-scope-select').value;
+    wordScope=(page !== 'all') ? page : scope;
+    shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false;
+    updateProgress();
     nextQuestion();
 };
 
-function pickWeightedIndex(items, stats) {
-    const weightedIndices = [];
-
-    items.forEach((_, idx) => {
-        const stat = stats[idx];
-        const rate = stat.total === 0 ? 0 : stat.correct / stat.total;
-        const weight = Math.max(1, Math.ceil((1.1 - rate) * 10));
-
-        for (let i = 0; i < weight; i++) {
-            weightedIndices.push(idx);
-        }
-    });
-
-    return weightedIndices[Math.floor(Math.random() * weightedIndices.length)];
-}
-
-window.nextQuestion = function() {
-    if (quizMode === "sentences") {
-        nextSentenceQuestion();
-        return;
-    }
-
-    nextWordQuestion();
+window.resetProgress=function(){
+    if(!confirm("単語と例文の学習履歴をすべてリセットしますか？")) return;
+    initStats(); saveProgress(); nextQuestion();
 };
 
-function nextWordQuestion() {
-    updateProgress();
-
-    currentIdx = pickWeightedIndex(words, wordStats);
-    currentWord = words[currentIdx];
-
-    const stat = wordStats[currentIdx];
-    const rate = stat.total === 0 ? -1 : (stat.correct / stat.total);
-
-    const rateBadge = document.getElementById('rate-badge');
-
-    if (rate === -1) {
-        currentMode = "choice";
-        rateBadge.textContent = "未挑戦 (4択)";
-        rateBadge.className = "rate-badge rate-low";
-    } else if (rate < 0.4) {
-        currentMode = "choice";
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
-        rateBadge.className = "rate-badge rate-low";
-    } else if (rate < 0.8) {
-        currentMode = "translate";
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (日本語入力)`;
-        rateBadge.className = "rate-badge rate-mid";
-    } else {
-        currentMode = "write";
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (アラビア語入力)`;
-        rateBadge.className = "rate-badge rate-high";
-    }
-
-    updateModeUI();
-    document.getElementById('feedback-msg').textContent = '';
-    document.getElementById('feedback-msg').style.color = '';
-    document.getElementById('next-btn').style.display = 'none';
-
-    setupWordUI();
-}
-
-function nextSentenceQuestion() {
-    updateProgress();
-
-    currentSentenceIdx = pickWeightedIndex(sentences, sentenceStats);
-    currentSentence = sentences[currentSentenceIdx];
-
-    const stat = sentenceStats[currentSentenceIdx];
-    const rate = stat.total === 0 ? -1 : (stat.correct / stat.total);
-    const rateBadge = document.getElementById('rate-badge');
-
-    if (rate === -1) {
-        rateBadge.textContent = "未挑戦 (4択)";
-        rateBadge.className = "rate-badge rate-low";
-    } else if (rate < 0.4) {
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
-        rateBadge.className = "rate-badge rate-low";
-    } else if (rate < 0.8) {
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
-        rateBadge.className = "rate-badge rate-mid";
-    } else {
-        rateBadge.textContent = `正答率 ${(rate * 100).toFixed(0)}% (4択)`;
-        rateBadge.className = "rate-badge rate-high";
-    }
-
-    updateModeUI();
-
-    const qElem = document.getElementById('question-word');
-    const pElem = document.getElementById('pronunciation-word');
-    const titleElem = document.getElementById('mode-title');
-    const area = document.getElementById('interactive-area');
-
-    titleElem.textContent = "【例文テスト】英語に対応するアラビア語を選んでください";
-    qElem.textContent = currentSentence.en;
-    qElem.style.direction = "ltr";
-    pElem.textContent = "";
-    area.innerHTML = "";
-    document.getElementById('feedback-msg').textContent = "";
-    document.getElementById('feedback-msg').style.color = "";
-    document.getElementById('next-btn').style.display = 'none';
-
-    correctAnswer = currentSentence.ar;
-
-    const choices = [currentSentence.ar];
-    while (choices.length < 4) {
-        const candidate = sentences[Math.floor(Math.random() * sentences.length)].ar;
-        if (!choices.includes(candidate)) {
-            choices.push(candidate);
-        }
-    }
-    choices.sort(() => Math.random() - 0.5);
-
-    const grid = document.createElement('div');
-    grid.className = 'options-grid';
-
-    choices.forEach(choice => {
-        const btn = document.createElement('button');
-        btn.className = 'option-btn';
-        btn.textContent = choice;
-        btn.style.direction = "rtl";
-        btn.onclick = function() {
-            checkSentenceAnswer(choice, btn);
-        };
-        grid.appendChild(btn);
+function pickWeightedIndex(items, stats, allowedIndices=null) {
+    const indices=allowedIndices || items.map((_,i)=>i);
+    const weighted=[];
+    indices.forEach(idx=>{
+        const stat=stats[idx]; const rate=stat.total===0?0:stat.correct/stat.total;
+        const weight=Math.max(1,Math.ceil((1.1-rate)*10));
+        for(let i=0;i<weight;i++) weighted.push(idx);
     });
-
-    const passBtn = document.createElement('button');
-    passBtn.className = 'option-btn pass-btn';
-    passBtn.textContent = "❓ 分からない (パス)";
-    passBtn.onclick = function() {
-        checkSentenceAnswer(null, passBtn);
-    };
-    grid.appendChild(passBtn);
-
-    area.appendChild(grid);
+    return weighted[Math.floor(Math.random()*weighted.length)];
 }
 
-function setupWordUI() {
-    const qElem = document.getElementById('question-word');
-    const pElem = document.getElementById('pronunciation-word');
-    const titleElem = document.getElementById('mode-title');
-    const area = document.getElementById('interactive-area');
+window.nextQuestion=function(){
+    if(quizMode==="sentences") return nextSentenceQuestion();
+    if(quizMode==="shadowing") return nextShadowingQuestion();
+    return nextWordQuestion();
+};
 
-    area.innerHTML = '';
+function nextWordQuestion(){
+    updateProgress();
+    const ids=getScopedWordIndices();
+    if(!ids.length) return;
+    currentIdx=pickWeightedIndex(words,wordStats,ids);
+    currentWord=words[currentIdx];
+    const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+    const badge=document.getElementById('rate-badge');
+    if(rate===-1){currentMode="choice";badge.textContent="未挑戦 (4択)";badge.className="rate-badge rate-low";}
+    else if(rate<0.4){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
+    else if(rate<0.8){currentMode="translate";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;badge.className="rate-badge rate-mid";}
+    else {currentMode="write";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className="rate-badge rate-high";}
+    updateModeUI(); clearQuestionArea(); setupWordUI();
+}
 
-    if (currentMode === "choice") {
-        titleElem.textContent = "【4択モード】正しい日本語を選んでください";
-        qElem.textContent = currentWord.ar;
-        qElem.style.direction = "rtl";
-        pElem.textContent = `【発音: ${currentWord.pr}】`;
-        correctAnswer = currentWord.jp;
+function nextSentenceQuestion(){
+    updateProgress();
+    currentSentenceIdx=pickWeightedIndex(sentences,sentenceStats);
+    currentSentence=sentences[currentSentenceIdx];
+    const stat=sentenceStats[currentSentenceIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+    const badge=document.getElementById('rate-badge');
+    badge.textContent=rate===-1?"未挑戦 (4択)":`正答率 ${(rate*100).toFixed(0)}% (4択)`;
+    badge.className=`rate-badge ${rate>=0.8?'rate-high':rate>=0.4?'rate-mid':'rate-low'}`;
+    updateModeUI(); clearQuestionArea();
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
+    title.textContent="【例文テスト】英語に対応するアラビア語を選んでください";
+    q.textContent=currentSentence.en; q.style.direction="ltr"; p.textContent=""; correctAnswer=currentSentence.ar;
+    const choices=[currentSentence.ar];
+    while(choices.length<4){const c=sentences[Math.floor(Math.random()*sentences.length)].ar;if(!choices.includes(c))choices.push(c);}
+    choices.sort(()=>Math.random()-0.5);
+    const grid=document.createElement('div'); grid.className='options-grid';
+    choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=c;b.style.direction='rtl';b.onclick=()=>checkSentenceAnswer(c,b);grid.appendChild(b);});
+    const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkSentenceAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
+}
 
-        const choices = [currentWord.jp];
-        while (choices.length < 4) {
-            const rJp = words[Math.floor(Math.random() * words.length)].jp;
-            if (!choices.includes(rJp)) choices.push(rJp);
-        }
-
-        choices.sort(() => Math.random() - 0.5);
-
-        const grid = document.createElement('div');
-        grid.className = 'options-grid';
-
-        choices.forEach(choice => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.textContent = choice;
-            btn.onclick = function() {
-                checkAnswer(choice, btn);
-            };
-            grid.appendChild(btn);
-        });
-
-        const passBtn = document.createElement('button');
-        passBtn.className = 'option-btn pass-btn';
-        passBtn.textContent = "❓ 分からない (パス)";
-        passBtn.onclick = function() {
-            checkAnswer(null, passBtn);
-        };
-        grid.appendChild(passBtn);
-
-        area.appendChild(grid);
-
-    } else if (currentMode === "translate") {
-        titleElem.textContent = "【中級モード】日本語訳を入力してください";
-        qElem.textContent = currentWord.ar;
-        qElem.style.direction = "rtl";
-        pElem.textContent = `【発音: ${currentWord.pr}】`;
-        correctAnswer = currentWord.jp;
-
-        area.innerHTML = `
-            <input type="text" id="user-input" class="input-box" placeholder="日本語を入力..." autocomplete="off">
-            <br>
-            <div class="btn-group">
-                <button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button>
-                <button class="skip-btn" onclick="checkTypedAnswer(true)">分からない</button>
-            </div>
-        `;
-
-    } else if (currentMode === "write") {
-        titleElem.textContent = "【上級モード】アラビア語で記述してください";
-        qElem.textContent = currentWord.jp;
-        qElem.style.direction = "ltr";
-        pElem.textContent = "";
-        correctAnswer = currentWord.ar;
-
-        area.innerHTML = `
-            <input type="text" id="user-input" class="input-box" placeholder="アラビア語を入力..." autocomplete="off" dir="rtl">
-            <br>
-            <div class="btn-group">
-                <button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button>
-                <button class="skip-btn" onclick="checkTypedAnswer(true)">分からない</button>
-            </div>
-        `;
+function nextShadowingQuestion(){
+    updateProgress();
+    if (!shadowingQueue.length || shadowingIndex >= shadowingQueue.length) {
+        shadowingQueue=[...getScopedWordIndices()].sort(()=>Math.random()-0.5);
+        shadowingIndex=0;
     }
+    currentIdx=shadowingQueue[shadowingIndex];
+    currentWord=words[currentIdx];
+    shadowingAwaitingTest=false;
+    updateModeUI(); clearQuestionArea();
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
+    title.textContent=`【シャドーイング ${shadowingIndex+1}/${shadowingQueue.length}】音声を聞いて発音してください`;
+    q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`;
+    const card=document.createElement('div'); card.className='shadowing-card';
+    card.innerHTML=`<div class="shadowing-arabic">${currentWord.ar}</div><div class="shadowing-pronunciation">${currentWord.pr}</div>`;
+    const speak=document.createElement('button'); speak.className='shadowing-btn submit-btn'; speak.textContent='🔊 アラビア語を再生'; speak.onclick=()=>speakArabic(currentWord.ar);
+    const done=document.createElement('button'); done.className='shadowing-btn option-btn'; done.textContent='シャドーイング完了 → テスト'; done.onclick=()=>startShadowingTest();
+    card.appendChild(speak); card.appendChild(done); area.appendChild(card);
+    speakArabic(currentWord.ar);
+}
 
-    const input = document.getElementById('user-input');
-    if (input) {
-        input.focus();
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') checkTypedAnswer(false);
-        });
+function startShadowingTest(){
+    shadowingAwaitingTest=true;
+    const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+    const badge=document.getElementById('rate-badge');
+    if(rate===-1){currentMode='choice';badge.textContent='未挑戦 (4択)';badge.className='rate-badge rate-low';}
+    else if(rate<0.4){currentMode='choice';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className='rate-badge rate-low';}
+    else if(rate<0.8){currentMode='translate';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;badge.className='rate-badge rate-mid';}
+    else {currentMode='write';badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className='rate-badge rate-high';}
+    clearQuestionArea(); setupWordUI();
+    document.getElementById('mode-title').textContent='【シャドーイング後テスト】';
+}
+
+function finishShadowingItem(){
+    shadowingIndex++;
+    shadowingAwaitingTest=false;
+    if(shadowingIndex>=shadowingQueue.length) shadowingQueue=[];
+    nextQuestion();
+}
+
+function speakArabic(text){
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.lang='ar-SA'; u.rate=0.78; u.pitch=1;
+    window.speechSynthesis.speak(u);
+}
+
+function clearQuestionArea(){
+    document.getElementById('question-word').textContent='...';
+    document.getElementById('pronunciation-word').textContent='';
+    document.getElementById('interactive-area').innerHTML='';
+    document.getElementById('feedback-msg').textContent='';
+    document.getElementById('feedback-msg').style.color='';
+    document.getElementById('next-btn').style.display='none';
+}
+
+function setupWordUI(){
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
+    area.innerHTML='';
+    if(currentMode==='choice'){
+        title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・4択】正しい日本語を選んでください':'【4択モード】正しい日本語を選んでください';
+        q.textContent=currentWord.ar;q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
+        const choices=[currentWord.jp]; const ids=getScopedWordIndices();
+        while(choices.length<4){const c=words[ids[Math.floor(Math.random()*ids.length)]].jp;if(!choices.includes(c))choices.push(c);}
+        choices.sort(()=>Math.random()-0.5); const grid=document.createElement('div');grid.className='options-grid';
+        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=c;b.onclick=()=>checkAnswer(c,b);grid.appendChild(b);});
+        const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
+    } else if(currentMode==='translate'){
+        title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・中級】日本語訳を入力してください':'【中級モード】日本語訳を入力してください';
+        q.textContent=currentWord.ar;q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
+        area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="日本語を入力..." autocomplete="off"><br><div class="btn-group"><button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkTypedAnswer(true)">分からない</button></div>';
+    } else {
+        title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・上級】アラビア語で記述してください':'【上級モード】アラビア語で記述してください';
+        q.textContent=currentWord.jp;q.style.direction='ltr';p.textContent='';correctAnswer=currentWord.ar;
+        area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="アラビア語を入力..." autocomplete="off" dir="rtl"><br><div class="btn-group"><button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkTypedAnswer(true)">分からない</button></div>';
     }
+    const input=document.getElementById('user-input');
+    if(input){input.focus();input.addEventListener('keypress',e=>{if(e.key==='Enter')checkTypedAnswer(false);});}
 }
 
 window.checkAnswer = function(userAns, btnElement) {
@@ -849,8 +868,13 @@ window.checkAnswer = function(userAns, btnElement) {
         });
     }
 
+    document.getElementById('pronunciation-word').textContent = `【発音: ${currentWord.pr}】`;
+    document.getElementById('question-word').textContent = currentWord.ar;
     updateProgress();
-    document.getElementById('next-btn').style.display = 'inline-block';
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.textContent = quizMode === 'shadowing' ? '次のシャドーイングへ ➔' : '次の問題へ ➔';
+    nextBtn.onclick = quizMode === 'shadowing' ? finishShadowingItem : nextQuestion;
+    nextBtn.style.display = 'inline-block';
 };
 
 window.checkSentenceAnswer = function(userAns, btnElement) {
@@ -879,7 +903,10 @@ window.checkSentenceAnswer = function(userAns, btnElement) {
         `【発音: ${currentSentence.pr}】`;
 
     updateProgress();
-    document.getElementById('next-btn').style.display = 'inline-block';
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.textContent = '次の問題へ ➔';
+    nextBtn.onclick = nextQuestion;
+    nextBtn.style.display = 'inline-block';
 };
 
 window.checkTypedAnswer = function(isSkip) {
@@ -914,6 +941,15 @@ window.checkTypedAnswer = function(isSkip) {
     }
 
     updateProgress();
+    if (quizMode === 'shadowing') {
+        const nextBtn = document.getElementById('next-btn');
+        nextBtn.textContent = '次のシャドーイングへ ➔';
+        nextBtn.onclick = finishShadowingItem;
+    } else {
+        const nextBtn = document.getElementById('next-btn');
+        nextBtn.textContent = '次の問題へ ➔';
+        nextBtn.onclick = nextQuestion;
+    }
     document.getElementById('next-btn').style.display = 'inline-block';
 };
 
@@ -932,6 +968,8 @@ function recordSentenceResult(isCorrect) {
 document.addEventListener('DOMContentLoaded', () => {
     initStats();
     loadProgress();
+    populatePageSelector();
+    updateScopeUI();
     updateProgress();
     nextQuestion();
 });
