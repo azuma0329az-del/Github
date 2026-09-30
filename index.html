@@ -242,6 +242,8 @@
         <span class="filter-label">📝 テストモード</span>
         <select id="quiz-mode-select" class="page-select" onchange="onQuizModeChange()">
             <option value="words">単語テスト</option>
+            <option value="verbs">基本動詞テスト</option>
+            <option value="questions">5W1H疑問詞テスト</option>
             <option value="sentences">例文テスト</option>
             <option value="shadowing">シャドーイング → 単語テスト</option>
         </select>
@@ -430,6 +432,44 @@ const words = [
 
 const SENTENCE_STORAGE_KEY = 'arabic_quiz_sentence_stats_v1';
 const WORD_STORAGE_KEY = 'arabic_quiz_word_stats_v1';
+const VERB_STORAGE_KEY = 'arabic_quiz_verb_stats_v1';
+const QUESTION_STORAGE_KEY = 'arabic_quiz_question_stats_v1';
+
+const basicVerbs = [
+    { ar: "أراد", pr: "arāda", jp: "望む・欲しい" },
+    { ar: "ذهب", pr: "dhahaba", jp: "行く" },
+    { ar: "سأل", pr: "saʾala", jp: "尋ねる・聞く" },
+    { ar: "أكل", pr: "ʾakala", jp: "食べる" },
+    { ar: "ملك", pr: "malaka", jp: "持つ・所有する" },
+    { ar: "نظر", pr: "naẓara", jp: "見る" },
+    { ar: "قال", pr: "qāla", jp: "言う" },
+    { ar: "فعل", pr: "faʿala", jp: "する" },
+    { ar: "عرف", pr: "ʿarafa", jp: "知る" },
+    { ar: "وجد", pr: "wajada", jp: "見つける" },
+    { ar: "أخذ", pr: "ʾakhadha", jp: "取る・受け取る" },
+    { ar: "أعطى", pr: "ʾaʿṭā", jp: "与える" },
+    { ar: "قرأ", pr: "qaraʾa", jp: "読む" },
+    { ar: "كتب", pr: "kataba", jp: "書く" },
+    { ar: "شرب", pr: "shariba", jp: "飲む" },
+    { ar: "جاء", pr: "jāʾa", jp: "来る" },
+    { ar: "نام", pr: "nāma", jp: "寝る" },
+    { ar: "عمل", pr: "ʿamila", jp: "働く・する" },
+    { ar: "أحب", pr: "ʾaḥabba", jp: "愛する・好きである" },
+    { ar: "فتح", pr: "fataḥa", jp: "開ける" },
+    { ar: "أغلق", pr: "ʾaghlaqa", jp: "閉める" },
+    { ar: "اشترى", pr: "ishtarā", jp: "買う" },
+    { ar: "يحتاج", pr: "yaḥtāju", jp: "必要とする" },
+    { ar: "يستطيع", pr: "yastaṭīʿu", jp: "できる" }
+];
+
+const questionWords = [
+    { ar: "من", pr: "man", jp: "誰（Who）" },
+    { ar: "ماذا", pr: "mādhā", jp: "何（What）" },
+    { ar: "متى", pr: "matā", jp: "いつ（When）" },
+    { ar: "أين", pr: "ayna", jp: "どこ（Where）" },
+    { ar: "لماذا", pr: "limādhā", jp: "なぜ（Why）" },
+    { ar: "كيف", pr: "kayfa", jp: "どうやって・どのように（How）" }
+];
 
 const sentences = [
     { en: "Hi / Hello", ar: "اهلا", pr: "Ahlan" },
@@ -514,24 +554,27 @@ const sentences = [
 ];
 
 let wordStats = {};
+let verbStats = {};
+let questionStats = {};
 let sentenceStats = {};
 
 function initStats() {
     wordStats = {};
-    words.forEach((_, index) => {
-        wordStats[index] = { correct: 0, total: 0 };
-    });
-
+    words.forEach((_, index) => { wordStats[index] = { correct: 0, total: 0 }; });
+    verbStats = {};
+    basicVerbs.forEach((_, index) => { verbStats[index] = { correct: 0, total: 0 }; });
+    questionStats = {};
+    questionWords.forEach((_, index) => { questionStats[index] = { correct: 0, total: 0 }; });
     sentenceStats = {};
-    sentences.forEach((_, index) => {
-        sentenceStats[index] = { correct: 0, total: 0 };
-    });
+    sentences.forEach((_, index) => { sentenceStats[index] = { correct: 0, total: 0 }; });
 }
 
 function loadProgress() {
     try {
         const savedWords = localStorage.getItem(WORD_STORAGE_KEY);
         const savedSentences = localStorage.getItem(SENTENCE_STORAGE_KEY);
+        const savedVerbs = localStorage.getItem(VERB_STORAGE_KEY);
+        const savedQuestions = localStorage.getItem(QUESTION_STORAGE_KEY);
 
         if (savedWords) {
             const parsed = JSON.parse(savedWords);
@@ -556,6 +599,18 @@ function loadProgress() {
                 }
             });
         }
+        if (savedVerbs) {
+            const parsed = JSON.parse(savedVerbs);
+            basicVerbs.forEach((_, index) => {
+                if (parsed[index]) verbStats[index] = { correct: Number(parsed[index].correct) || 0, total: Number(parsed[index].total) || 0 };
+            });
+        }
+        if (savedQuestions) {
+            const parsed = JSON.parse(savedQuestions);
+            questionWords.forEach((_, index) => {
+                if (parsed[index]) questionStats[index] = { correct: Number(parsed[index].correct) || 0, total: Number(parsed[index].total) || 0 };
+            });
+        }
     } catch (e) {
         console.warn("進捗データの読み込みに失敗しました:", e);
     }
@@ -563,8 +618,10 @@ function loadProgress() {
 
 function saveProgress() {
     try {
-        localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
+localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
         localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
+        localStorage.setItem(VERB_STORAGE_KEY, JSON.stringify(verbStats));
+        localStorage.setItem(QUESTION_STORAGE_KEY, JSON.stringify(questionStats));
     } catch (e) {
         console.warn("進捗データの保存に失敗しました:", e);
     }
@@ -613,44 +670,16 @@ function populatePageSelector() {
     if ([...select.options].some(o => o.value === old)) select.value = old;
 }
 
-function initStats() {
-    wordStats = {};
-    words.forEach((_, index) => { wordStats[index] = { correct: 0, total: 0 }; });
-    sentenceStats = {};
-    sentences.forEach((_, index) => { sentenceStats[index] = { correct: 0, total: 0 }; });
+function getCurrentStats() {
+    if (quizMode === "sentences") return sentenceStats;
+    if (quizMode === "verbs") return verbStats;
+    if (quizMode === "questions") return questionStats;
+    return wordStats;
 }
-
-function loadProgress() {
-    try {
-        const savedWords = localStorage.getItem(WORD_STORAGE_KEY);
-        const savedSentences = localStorage.getItem(SENTENCE_STORAGE_KEY);
-        if (savedWords) {
-            const parsed = JSON.parse(savedWords);
-            words.forEach((_, index) => {
-                if (parsed[index]) wordStats[index] = { correct: Number(parsed[index].correct)||0, total: Number(parsed[index].total)||0 };
-            });
-        }
-        if (savedSentences) {
-            const parsed = JSON.parse(savedSentences);
-            sentences.forEach((_, index) => {
-                if (parsed[index]) sentenceStats[index] = { correct: Number(parsed[index].correct)||0, total: Number(parsed[index].total)||0 };
-            });
-        }
-    } catch (e) { console.warn("進捗データの読み込みに失敗しました:", e); }
-}
-
-function saveProgress() {
-    try {
-        localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
-        localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
-    } catch (e) { console.warn("進捗データの保存に失敗しました:", e); }
-}
-
-function getCurrentStats() { return quizMode === "sentences" ? sentenceStats : wordStats; }
 
 function updateProgress() {
     const stats = getCurrentStats();
-    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : getScopedWordIndices();
+    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : quizMode === "verbs" ? basicVerbs.map((_,i)=>i) : quizMode === "questions" ? questionWords.map((_,i)=>i) : getScopedWordIndices();
     const totalItems = indices.length || 1;
     let unattempted=0, weak=0, review=0, mastered=0;
     indices.forEach(i => {
@@ -671,7 +700,7 @@ function updateProgress() {
 
 function updateScopeUI() {
     const container=document.getElementById('word-scope-container');
-    if (container) container.style.display=(quizMode === "sentences") ? 'none' : 'block';
+    if (container) container.style.display=['sentences','verbs','questions'].includes(quizMode) ? 'none' : 'block';
     const scope=document.getElementById('word-scope-select');
     const page=document.getElementById('word-page-select');
     if (!scope || !page) return;
@@ -683,7 +712,13 @@ function updateScopeUI() {
 function updateModeUI() {
     const select=document.getElementById('quiz-mode-select');
     const pageBadge=document.getElementById('page-badge');
-    if (quizMode === "sentences") {
+    if (quizMode === "verbs") {
+        select.value="verbs";
+        pageBadge.textContent=`基本動詞 ${basicVerbs.length}語`;
+    } else if (quizMode === "questions") {
+        select.value="questions";
+        pageBadge.textContent=`5W1H ${questionWords.length}語`;
+    } else if (quizMode === "sentences") {
         select.value="sentences";
         pageBadge.textContent=`例文 (${sentences.length}文)`;
     } else if (quizMode === "shadowing") {
@@ -714,7 +749,7 @@ window.onWordScopeChange=function(){
 };
 
 window.resetProgress=function(){
-    if(!confirm("単語と例文の学習履歴をすべてリセットしますか？")) return;
+    if(!confirm("単語・基本動詞・5W1H・例文の学習履歴をすべてリセットしますか？")) return;
     initStats(); saveProgress(); nextQuestion();
 };
 
@@ -730,9 +765,72 @@ function pickWeightedIndex(items, stats, allowedIndices=null) {
 }
 
 window.nextQuestion=function(){
+    if(quizMode==="verbs") return nextBasicWordQuestion(basicVerbs, verbStats, "基本動詞テスト");
+    if(quizMode==="questions") return nextBasicWordQuestion(questionWords, questionStats, "5W1H疑問詞テスト");
     if(quizMode==="sentences") return nextSentenceQuestion();
     if(quizMode==="shadowing") return nextShadowingQuestion();
     return nextWordQuestion();
+};
+
+function nextBasicWordQuestion(bank, stats, label){
+    updateProgress();
+    const idxs=bank.map((_,i)=>i);
+    currentIdx=pickWeightedIndex(bank,stats,idxs);
+    currentWord=bank[currentIdx];
+    const stat=stats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+    const badge=document.getElementById('rate-badge');
+    if(rate===-1){currentMode="choice";badge.textContent="未挑戦 (4択)";badge.className="rate-badge rate-low";}
+    else if(rate<0.4){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
+    else if(rate<0.8){currentMode="translate";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;badge.className="rate-badge rate-mid";}
+    else {currentMode="write";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className="rate-badge rate-high";}
+    updateModeUI(); clearQuestionArea(); setupBasicWordUI(label,bank);
+}
+
+function setupBasicWordUI(label,bank){
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
+    area.innerHTML='';
+    if(currentMode==='choice'){
+        title.textContent=`【${label}・4択】正しい日本語を選んでください`;
+        q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
+        const choices=[currentWord.jp];
+        while(choices.length<4){const c=bank[Math.floor(Math.random()*bank.length)].jp;if(!choices.includes(c))choices.push(c);}
+        choices.sort(()=>Math.random()-0.5); const grid=document.createElement('div');grid.className='options-grid';
+        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=c;b.onclick=()=>checkBasicWordAnswer(c,b);grid.appendChild(b);});
+        const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkBasicWordAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
+    } else if(currentMode==='translate'){
+        title.textContent=`【${label}・中級】日本語訳を入力してください`;
+        q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
+        area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="日本語を入力..." autocomplete="off"><br><div class="btn-group"><button class="submit-btn" onclick="checkBasicTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkBasicTypedAnswer(true)">分からない</button></div>';
+    } else {
+        title.textContent=`【${label}・上級】アラビア語で記述してください`;
+        q.textContent=currentWord.jp; q.style.direction='ltr'; p.textContent=''; correctAnswer=currentWord.ar;
+        area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="アラビア語を入力..." autocomplete="off" dir="rtl"><br><div class="btn-group"><button class="submit-btn" onclick="checkBasicTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkBasicTypedAnswer(true)">分からない</button></div>';
+    }
+    const input=document.getElementById('user-input');
+    if(input){input.focus();input.addEventListener('keypress',e=>{if(e.key==='Enter')checkBasicTypedAnswer(false);});}
+}
+
+window.checkBasicWordAnswer=function(userAns,btnElement){
+    const isCorrect=userAns===correctAnswer;
+    recordBasicResult(isCorrect);
+    const feedback=document.getElementById('feedback-msg'), allBtns=document.querySelectorAll('.option-btn');
+    allBtns.forEach(b=>b.disabled=true);
+    if(isCorrect){if(btnElement)btnElement.classList.add('correct');feedback.textContent='正解！';feedback.style.color='#16a34a';}
+    else{if(btnElement&&userAns!==null)btnElement.classList.add('wrong');feedback.textContent=`❌ 正解は「${correctAnswer}」`;feedback.style.color='#dc2626';allBtns.forEach(b=>{if(b.textContent===correctAnswer)b.classList.add('correct');});}
+    document.getElementById('pronunciation-word').textContent=`【発音: ${currentWord.pr}】`;
+    document.getElementById('question-word').textContent=currentWord.ar;
+    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block';
+};
+
+window.checkBasicTypedAnswer=function(isSkip){
+    const input=document.getElementById('user-input'); if(!input)return;
+    const val=input.value.trim(); if(!isSkip&&!val)return; input.disabled=true;
+    const isCorrect=!isSkip&&(val===correctAnswer||(currentMode==='translate'&&correctAnswer.includes(val)));
+    recordBasicResult(isCorrect);
+    const feedback=document.getElementById('feedback-msg');
+    if(currentMode==='write')document.getElementById('pronunciation-word').textContent=`【発音: ${currentWord.pr}】`;
+    feedback.textContent=isCorrect?'正解！':`❌ 正解は「${correctAnswer}」`; feedback.style.color=isCorrect?'#16a34a':'#dc2626';
+    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block';
 };
 
 function nextWordQuestion(){
@@ -741,7 +839,7 @@ function nextWordQuestion(){
     if(!ids.length) return;
     currentIdx=pickWeightedIndex(words,wordStats,ids);
     currentWord=words[currentIdx];
-    const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
     const badge=document.getElementById('rate-badge');
     if(rate===-1){currentMode="choice";badge.textContent="未挑戦 (4択)";badge.className="rate-badge rate-low";}
     else if(rate<0.4){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
@@ -957,6 +1055,13 @@ window.checkTypedAnswer = function(isSkip) {
     document.getElementById('next-btn').style.display = 'inline-block';
 };
 
+function recordBasicResult(isCorrect) {
+    const stats = quizMode === "verbs" ? verbStats : questionStats;
+    stats[currentIdx].total += 1;
+    if (isCorrect) stats[currentIdx].correct += 1;
+    saveProgress();
+}
+
 function recordWordResult(isCorrect) {
     wordStats[currentIdx].total += 1;
     if (isCorrect) wordStats[currentIdx].correct += 1;
@@ -982,4 +1087,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
-
