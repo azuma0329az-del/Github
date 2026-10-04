@@ -223,6 +223,11 @@
             font-weight: bold;
             min-height: 25px;
         }
+        .adjective-pair-note { margin: 8px 0 12px; font-weight: bold; color: #475569; }
+        .adjective-pair { border: 2px solid #cbd5e1; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .adjective-pair-ar { font-size: 1.5rem; direction: rtl; font-weight: bold; }
+        .adjective-pair-pr { color: #0284c7; font-size: 0.9rem; }
+
         .shadowing-card {
             border: 2px solid #cbd5e1;
             border-radius: 12px;
@@ -262,6 +267,7 @@
             <option value="words">単語テスト</option>
             <option value="genres">ジャンル別単語テスト</option>
             <option value="verbs">基本動詞テスト</option>
+            <option value="adjectives">形容詞テスト</option>
             <option value="questions">5W1H疑問詞テスト</option>
             <option value="sentences">例文テスト</option>
             <option value="shadowing">シャドーイング → 単語テスト</option>
@@ -671,6 +677,7 @@ const HARAKAT_OVERRIDES = {
 const SENTENCE_STORAGE_KEY = 'arabic_quiz_sentence_stats_v1';
 const WORD_STORAGE_KEY = 'arabic_quiz_word_stats_v1';
 const VERB_STORAGE_KEY = 'arabic_quiz_verb_stats_v1';
+const ADJECTIVE_STORAGE_KEY = 'arabic_quiz_adjective_stats_v1';
 const QUESTION_STORAGE_KEY = 'arabic_quiz_question_stats_v1';
 
 const basicVerbs = [
@@ -697,8 +704,48 @@ const basicVerbs = [
     { ar: "أغلق", pr: "ʾaghlaqa", jp: "閉める" },
     { ar: "اشترى", pr: "ishtarā", jp: "買う" },
     { ar: "يحتاج", pr: "yaḥtāju", jp: "必要とする" },
-    { ar: "يستطيع", pr: "yastaṭīʿu", jp: "できる" }
+    { ar: "يستطيع", pr: "yastaṭīʿu", jp: "できる" },
+   { ar: "يساعد", pr: "yusāʿid", jp: "助ける" }, { ar: "يخرج", pr: "yakhruj", jp: "出る、外出する" },
+    { ar: "تتكون", pr: "tatakawwan", jp: "構成される" }, { ar: "شم", pr: "shamma", jp: "嗅いだ／匂いを嗅ぐ" },
+    { ar: "اشار", pr: "ashāra", jp: "指し示した" }, { ar: "فسال", pr: "fa-saʾala", jp: "そして尋ねた" },
+    { ar: "يَتَنَاوَلُ / يَأْكُلُ", pr: "yatanāwalu / yaʾkulu", jp: "食べる" }, { ar: "يَشْرَبُ", pr: "yashrabu", jp: "飲む" },
+    { ar: "يَجْرِي", pr: "yajrī", jp: "走る" }, { ar: "يَلْعَبُ", pr: "yalʿabu", jp: "遊ぶ、スポーツをする" },
+    { ar: "يُعَالِجُ", pr: "yuʿāliju", jp: "治療する" }, { ar: "تَطْبُخُ", pr: "taṭbukhu", jp: "料理する" },
+    { ar: "يَسْتَيْقِظُ", pr: "yastayqiẓu", jp: "起きる" }, { ar: "يَنَامُ", pr: "yanāmu", jp: "寝る" },
+    { ar: "يَعُودُ (مِنْ)", pr: "yaʿūdu (min)", jp: "〜から戻る" }, { ar: "يَذْهَبُ (إِلَى)", pr: "yadhhabu (ilā)", jp: "〜へ行く" },
+    { ar: "يَقُودُ", pr: "yaqūdu", jp: "運転する" }, { ar: "يَحْمِلُ", pr: "yaḥmilu", jp: "持つ、運ぶ" },
+    { ar: "تَشْرَحُ الدَّرْسَ / تُعَلِّمُ", pr: "tashraḥu ad-darsa / tuʿallimu", jp: "授業を説明する／教える" },
+    { ar: "يَسْبَحُ", pr: "yasbaḥu", jp: "泳ぐ" }, { ar: "يَقْرَأُ", pr: "yaqraʾu", jp: "読む" },
+    { ar: "يَعْمَلُ", pr: "yaʿmalu", jp: "働く、仕事をする" }, { ar: "يُشَاهِدُ", pr: "yushāhidu", jp: "見る、観る" },
+    { ar: "يَسْمَعُ", pr: "yasmaʿu", jp: "聞く" }, { ar: "تَغْسِلُ", pr: "taghsilu", jp: "洗う" },
+    { ar: "يَتَصَفَّحُ (الإِنْتَرْنَت)", pr: "yataṣaffaḥu (al-internet)", jp: "インターネットを閲覧する" },
+    { ar: "تُنَظِّفُ", pr: "tunaẓẓifu", jp: "掃除する、きれいにする" }, { ar: "يَسْتَحَمُّ", pr: "yastaḥammu", jp: "シャワーを浴びる" },
+    { ar: "يُفَكِّرُ", pr: "yufakkiru", jp: "考える" }, { ar: "يَرْتَدِي / يَلْبَسُ", pr: "yartadī / yalbasu", jp: "着る、身につける" },
+    { ar: "يَمْشِي", pr: "yamshī", jp: "歩く" }, { ar: "يَعْرِفُ", pr: "yaʿrifu", jp: "知っている" },
+    { ar: "يَقُولُ", pr: "yaqūlu", jp: "言う" }, { ar: "يُغْلِقُ (البَابَ)", pr: "yughliqu (al-bāba)", jp: "（ドアを）閉める" },
+    { ar: "يَفْتَحُ (البَابَ)", pr: "yaftaḥu (al-bāba)", jp: "（ドアを）開ける" }, { ar: "يَتَذَكَّرُ", pr: "yatadhakkaru", jp: "思い出す" },
+    { ar: "يَنْسَى", pr: "yansā", jp: "忘れる" }, { ar: "يَنْتَهِي", pr: "yantahī", jp: "終わる" },
+    { ar: "يَبْدَأُ", pr: "yabdaʾu", jp: "始める" }, { ar: "يَلْتَقِي", pr: "yaltaqī", jp: "会う" },
+    { ar: "يَبْحَثُ", pr: "yabḥathu", jp: "探す、調べる" }, { ar: "يَتَكَوَّنُ مِنْ", pr: "yatakawwanu min", jp: "〜から構成される" },
+    { ar: "يَسْتَمِرُّ", pr: "yastamirru", jp: "続く" }, { ar: "يَبْكِي", pr: "yabkī", jp: "泣く" },
+    { ar: "يَضْحَكُ", pr: "yaḍḥaku", jp: "笑う" }, { ar: "يُحِبُّ", pr: "yuḥibbu", jp: "好き、愛する" },
+    { ar: "تَتَحَدَّثُ / تَتَكَلَّمُ", pr: "tataḥaddathu / tatakallamu", jp: "話す" }, { ar: "يَدْرُسُ", pr: "yadrusu", jp: "勉強する" },
+    { ar: "يَكْتُبُ", pr: "yaktubu", jp: "書く" }, { ar: "يَتَسَلَّقُ", pr: "yatasallaqu", jp: "登る" },
+    { ar: "يَجْلِسُ", pr: "yajlisu", jp: "座る" }, { ar: "يَشْتَرِي", pr: "yashtarī", jp: "買う" },
+    { ar: "يَبِيعُ", pr: "yabīʿu", jp: "売る" }, { ar: "يَعِيشُ / يَسْكُنُ", pr: "yaʿīshu / yaskunu", jp: "住む、暮らす" },
+    { ar: "يُمَارِسُ الرِّيَاضَةَ", pr: "yumārisu ar-riyāḍah", jp: "スポーツをする" }, { ar: "يَزُورُ", pr: "yazūru", jp: "訪れる" },
+    { ar: "يُسَافِرُ", pr: "yusāfiru", jp: "旅行する" }
 ];
+
+// P36で新規追加した形容詞。対義語ペアを1組として管理し、必ずペアで連続出題する。
+const adjectivePairs = [
+    ["بَعِيدٌ", "قَرِيبٌ"], ["سَرِيعٌ", "بَطِيءٌ"], ["نَحِيفٌ", "سمين"], ["كَبِيرٌ", "صَغِيرٌ"],
+    ["طَوِيلٌ", "قَصِيرٌ"], ["حَارٌّ", "بَارِدٌ"], ["جَدِيدٌ", "قَدِيمٌ"],
+    ["مَفْتُوحٌ", "مُغْلَقٌ"], ["كَسُولٌ", "نَشِيطٌ"], ["قَلِيلٌ", "كَثِيرٌ"],
+    ["ضَعِيفٌ", "قَوِيٌّ"], ["مَدَنِيّ", "عَسْكَرِيّ"]
+];
+const adjectives = adjectivePairs.map(pair => pair.map(ar => words.find(w => w.ar === ar)).filter(Boolean));
+
 
 // 既存の単語を学習しやすいジャンルに分類。元の単語データ・ページ番号は変更しない。
 const WORD_GENRES = {
@@ -812,6 +859,7 @@ const sentences = [
 
 let wordStats = {};
 let verbStats = {};
+let adjectiveStats = {};
 let questionStats = {};
 let sentenceStats = {};
 
@@ -820,6 +868,8 @@ function initStats() {
     words.forEach((_, index) => { wordStats[index] = { correct: 0, total: 0 }; });
     verbStats = {};
     basicVerbs.forEach((_, index) => { verbStats[index] = { correct: 0, total: 0 }; });
+    adjectiveStats = {};
+    adjectives.flat().forEach(w => { const idx=words.indexOf(w); adjectiveStats[idx] = { correct: 0, total: 0 }; });
     questionStats = {};
     questionWords.forEach((_, index) => { questionStats[index] = { correct: 0, total: 0 }; });
     sentenceStats = {};
@@ -831,6 +881,7 @@ function loadProgress() {
         const savedWords = localStorage.getItem(WORD_STORAGE_KEY);
         const savedSentences = localStorage.getItem(SENTENCE_STORAGE_KEY);
         const savedVerbs = localStorage.getItem(VERB_STORAGE_KEY);
+        const savedAdjectives = localStorage.getItem(ADJECTIVE_STORAGE_KEY);
         const savedQuestions = localStorage.getItem(QUESTION_STORAGE_KEY);
 
         if (savedWords) {
@@ -862,6 +913,12 @@ function loadProgress() {
                 if (parsed[index]) verbStats[index] = { correct: Number(parsed[index].correct) || 0, total: Number(parsed[index].total) || 0 };
             });
         }
+        if (savedAdjectives) {
+            const parsed = JSON.parse(savedAdjectives);
+            Object.keys(adjectiveStats).forEach(index => {
+                if (parsed[index]) adjectiveStats[index] = { correct: Number(parsed[index].correct) || 0, total: Number(parsed[index].total) || 0 };
+            });
+        }
         if (savedQuestions) {
             const parsed = JSON.parse(savedQuestions);
             questionWords.forEach((_, index) => {
@@ -878,16 +935,16 @@ function saveProgress() {
         localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
         localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
         localStorage.setItem(VERB_STORAGE_KEY, JSON.stringify(verbStats));
+    localStorage.setItem(ADJECTIVE_STORAGE_KEY, JSON.stringify(adjectiveStats));
         localStorage.setItem(QUESTION_STORAGE_KEY, JSON.stringify(questionStats));
     } catch (e) {
         console.warn("進捗データの保存に失敗しました:", e);
     }
 }
 
-
 let quizMode = "words";
 let wordScope = "all";
- currentIdx = null;
+let currentIdx = null;
 let currentWord = null;
 let currentSentenceIdx = null;
 let currentSentence = null;
@@ -955,13 +1012,14 @@ function getActiveWordIndices() {
 function getCurrentStats() {
     if (quizMode === "sentences") return sentenceStats;
     if (quizMode === "verbs") return verbStats;
+    if (quizMode === "adjectives") return adjectiveStats;
     if (quizMode === "questions") return questionStats;
     return wordStats;
 }
 
 function updateProgress() {
     const stats = getCurrentStats();
-    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : quizMode === "verbs" ? basicVerbs.map((_,i)=>i) : quizMode === "questions" ? questionWords.map((_,i)=>i) : getActiveWordIndices();
+    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : quizMode === "verbs" ? basicVerbs.map((_,i)=>i) : quizMode === "adjectives" ? Object.keys(adjectiveStats).map(Number) : quizMode === "questions" ? questionWords.map((_,i)=>i) : getActiveWordIndices();
     const totalItems = indices.length || 1;
     let unattempted=0, weak=0, review=0, mastered=0;
     indices.forEach(i => {
@@ -999,6 +1057,9 @@ function updateModeUI() {
     if (quizMode === "verbs") {
         select.value="verbs";
         pageBadge.textContent=`基本動詞 ${basicVerbs.length}語`;
+    } else if (quizMode === "adjectives") {
+        select.value="adjectives";
+        pageBadge.textContent=`形容詞テスト ${adjectives.length}組`;
     } else if (quizMode === "questions") {
         select.value="questions";
         pageBadge.textContent=`5W1H ${questionWords.length}語`;
@@ -1030,6 +1091,7 @@ window.onQuizModeChange=function(){
     quizMode=document.getElementById('quiz-mode-select').value;
     currentIdx=null; currentWord=null; currentSentenceIdx=null; currentSentence=null;
     shadowingQueue=[]; shadowingIndex=0; shadowingAwaitingTest=false; shadowingBatch=[]; shadowingBatchPos=0; shadowingTestPos=0;
+    adjectivePairOrder=[]; adjectivePairPos=0; adjectiveSide=0;
     nextQuestion();
 };
 
@@ -1061,11 +1123,39 @@ function pickWeightedIndex(items, stats, allowedIndices=null) {
 window.nextQuestion=function(){
     if(quizMode==="genres") return nextWordQuestion();
     if(quizMode==="verbs") return nextBasicWordQuestion(basicVerbs, verbStats, "基本動詞テスト");
+    if(quizMode==="adjectives") return nextAdjectiveQuestion();
     if(quizMode==="questions") return nextBasicWordQuestion(questionWords, questionStats, "5W1H疑問詞テスト");
     if(quizMode==="sentences") return nextSentenceQuestion();
     if(quizMode==="shadowing") return nextShadowingQuestion();
     return nextWordQuestion();
 };
+
+function nextAdjectiveQuestion(){
+    updateProgress();
+    // 各ペアを1問として扱い、ペア内の2語を連続して出題する。
+    if (typeof adjectivePairOrder === 'undefined' || adjectivePairOrder.length === 0 || adjectivePairPos >= adjectivePairOrder.length) {
+        adjectivePairOrder = adjectives.map((_,i)=>i).sort(()=>Math.random()-0.5);
+        adjectivePairPos = 0;
+        adjectiveSide = 0;
+    }
+    const pairIndex = adjectivePairOrder[adjectivePairPos];
+    const pair = adjectives[pairIndex];
+    const word = pair[adjectiveSide];
+    currentIdx = words.indexOf(word);
+    currentWord = word;
+    const stat = adjectiveStats[currentIdx] || {correct:0,total:0};
+    const rate = stat.total===0 ? -1 : stat.correct/stat.total;
+    const badge=document.getElementById('rate-badge');
+    currentMode="choice";
+    badge.textContent=rate===-1?"未挑戦 (4択)":`正答率 ${(rate*100).toFixed(0)}% (4択)`;
+    badge.className=`rate-badge ${rate>=0.8?'rate-high':rate>0.75?'rate-mid':'rate-low'}`;
+    updateModeUI(); clearQuestionArea(); setupAdjectiveUI();
+    document.getElementById('mode-title').textContent=`【形容詞テスト・${adjectiveSide===0?'対義語1/2':'対義語2/2'}】`;
+}
+
+let adjectivePairOrder=[];
+let adjectivePairPos=0;
+let adjectiveSide=0;
 
 function nextBasicWordQuestion(bank, stats, label){
     updateProgress();
@@ -1080,6 +1170,36 @@ function nextBasicWordQuestion(bank, stats, label){
     else {currentMode="write";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className="rate-badge rate-high";}
     updateModeUI(); clearQuestionArea(); setupBasicWordUI(label,bank);
 }
+
+function setupAdjectiveUI(){
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), area=document.getElementById('interactive-area');
+    area.innerHTML='';
+    q.textContent=currentWord.jp; q.style.direction='ltr'; p.textContent=''; correctAnswer=currentWord.ar;
+    const pair = adjectives[adjectivePairOrder[adjectivePairPos]];
+    const other = pair.find(w=>w!==currentWord);
+    const note=document.createElement('div'); note.className='adjective-pair-note'; note.textContent=`対となる形容詞：${other.jp}`; area.appendChild(note);
+    const choices=[currentWord.ar];
+    const allAdjs=adjectives.flat();
+    while(choices.length<4){ const c=allAdjs[Math.floor(Math.random()*allAdjs.length)].ar; if(!choices.includes(c)) choices.push(c); }
+    choices.sort(()=>Math.random()-0.5);
+    const grid=document.createElement('div'); grid.className='options-grid';
+    choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';const item=words.find(x=>x.ar===c);const arSpan=document.createElement('div');arSpan.className='option-ar';arSpan.textContent=item?vocalizeArabic(item.ar,item.pr):c;const prSpan=document.createElement('div');prSpan.className='option-pr';prSpan.textContent=item?.pr||'';b.appendChild(arSpan);b.appendChild(prSpan);b.dataset.answer=c;b.style.direction='rtl';b.onclick=()=>checkAdjectiveAnswer(c,b);grid.appendChild(b);});
+    const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkAdjectiveAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
+}
+
+window.checkAdjectiveAnswer=function(userAns,btnElement){
+    const isCorrect=userAns===correctAnswer;
+    adjectiveStats[currentIdx] ||= {correct:0,total:0};
+    adjectiveStats[currentIdx].total++; if(isCorrect) adjectiveStats[currentIdx].correct++; saveProgress();
+    const feedback=document.getElementById('feedback-msg'), allBtns=document.querySelectorAll('#interactive-area .option-btn'); allBtns.forEach(b=>b.disabled=true);
+    if(isCorrect){btnElement?.classList.add('correct');feedback.textContent='正解！';feedback.style.color='#16a34a';}
+    else{if(btnElement&&userAns!==null)btnElement.classList.add('wrong');feedback.textContent=`❌ 正解は「${currentWord.jp}」`;feedback.style.color='#dc2626';allBtns.forEach(b=>{if(b.dataset.answer===correctAnswer)b.classList.add('correct');});}
+    const pair=adjectives[adjectivePairOrder[adjectivePairPos]]; const other=pair.find(w=>w!==currentWord);
+    const review=document.createElement('div');review.className='answer-review';
+    review.innerHTML=`<div class="answer-review-title">答え合わせ</div><div class="answer-review-question">問題：${currentWord.jp}</div><div class="answer-review-item correct-answer"><div class="answer-review-ar">${vocalizeArabic(currentWord.ar,currentWord.pr)}</div><div class="answer-review-pr">${currentWord.pr}</div><div class="answer-review-jp">意味：${currentWord.jp}</div></div><div class="answer-review-item"><div class="answer-review-ar">${vocalizeArabic(other.ar,other.pr)}</div><div class="answer-review-pr">${other.pr}</div><div class="answer-review-jp">対語：${other.jp}</div></div>`;
+    document.getElementById('interactive-area').appendChild(review);
+    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent=adjectiveSide===0?'対となる形容詞へ ➔':'次の形容詞ペアへ ➔'; nextBtn.onclick=()=>{if(adjectiveSide===0){adjectiveSide=1;}else{adjectiveSide=0;adjectivePairPos++;} nextQuestion();}; nextBtn.style.display='inline-block'; scrollToAnswerBottom();
+};
 
 function setupBasicWordUI(label,bank){
     const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
@@ -1114,7 +1234,7 @@ window.checkBasicWordAnswer=function(userAns,btnElement){
     else{if(btnElement&&userAns!==null)btnElement.classList.add('wrong');feedback.textContent=`❌ 正解は「${currentWord.jp}」`;feedback.style.color='#dc2626';allBtns.forEach(b=>{if(b.textContent===correctAnswer)b.classList.add('correct');});}
     document.getElementById('pronunciation-word').textContent=`【発音: ${currentWord.pr}】`;
     document.getElementById('question-word').textContent=vocalizeArabic(currentWord.ar, currentWord.pr);
-    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block';
+    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block'; scrollToAnswerBottom();
 };
 
 window.checkBasicTypedAnswer=function(isSkip){
@@ -1125,7 +1245,7 @@ window.checkBasicTypedAnswer=function(isSkip){
     const feedback=document.getElementById('feedback-msg');
     if(currentMode==='write')document.getElementById('pronunciation-word').textContent=`【発音: ${currentWord.pr}】`;
     feedback.textContent=isCorrect?'正解！':`❌ 正解は「${correctAnswer}」`; feedback.style.color=isCorrect?'#16a34a':'#dc2626';
-    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block';
+    updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block'; scrollToAnswerBottom();
 };
 
 function nextWordQuestion(){
@@ -1216,7 +1336,7 @@ function clearQuestionArea(){
 }
 
 function setupWordUI(){
-const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
+    const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
     area.innerHTML='';
     const imageWrap=document.createElement('div'); imageWrap.className='word-image-wrap';
     const imageLink=document.createElement('a'); imageLink.className='image-search-link'; imageLink.target='_blank'; imageLink.rel='noopener noreferrer';
@@ -1241,6 +1361,14 @@ const q=document.getElementById('question-word'), p=document.getElementById('pro
     }
     const input=document.getElementById('user-input');
     if(input){input.focus();input.addEventListener('keypress',e=>{if(e.key==='Enter')checkTypedAnswer(false);});}
+}
+
+function scrollToAnswerBottom(){
+    requestAnimationFrame(()=>{
+        const nextBtn=document.getElementById('next-btn');
+        if(nextBtn) nextBtn.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
+        else window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    });
 }
 
 window.checkAnswer = function(userAns, btnElement) {
@@ -1309,6 +1437,7 @@ window.checkAnswer = function(userAns, btnElement) {
     nextBtn.textContent = quizMode === 'shadowing' ? '次のシャドーイングへ ➔' : '次の問題へ ➔';
     nextBtn.onclick = quizMode === 'shadowing' ? finishShadowingItem : nextQuestion;
     nextBtn.style.display = 'inline-block';
+    scrollToAnswerBottom();
 };
 
 window.checkSentenceAnswer = function(userAns, btnElement) {
@@ -1341,6 +1470,7 @@ window.checkSentenceAnswer = function(userAns, btnElement) {
     nextBtn.textContent = '次の問題へ ➔';
     nextBtn.onclick = nextQuestion;
     nextBtn.style.display = 'inline-block';
+    scrollToAnswerBottom();
 };
 
 window.checkTypedAnswer = function(isSkip) {
@@ -1385,6 +1515,7 @@ window.checkTypedAnswer = function(isSkip) {
         nextBtn.onclick = nextQuestion;
     }
     document.getElementById('next-btn').style.display = 'inline-block';
+    scrollToAnswerBottom();
 };
 
 function recordBasicResult(isCorrect) {
@@ -1393,6 +1524,9 @@ function recordBasicResult(isCorrect) {
     if (isCorrect) stats[currentIdx].correct += 1;
     saveProgress();
 }
+
+function recordAdjectiveResult(isCorrect){ adjectiveStats[currentAdjectiveIndex].total+=1; if(isCorrect) adjectiveStats[currentAdjectiveIndex].correct+=1; saveProgress(); }
+function scrollAnswerIntoView(){ const nextBtn=document.getElementById('next-btn'); if(nextBtn) requestAnimationFrame(()=>nextBtn.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'})); }
 
 function recordWordResult(isCorrect) {
     wordStats[currentIdx].total += 1;
