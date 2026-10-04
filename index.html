@@ -242,10 +242,18 @@
         <span class="filter-label">📝 テストモード</span>
         <select id="quiz-mode-select" class="page-select" onchange="onQuizModeChange()">
             <option value="words">単語テスト</option>
+            <option value="genres">ジャンル別単語テスト</option>
             <option value="verbs">基本動詞テスト</option>
             <option value="questions">5W1H疑問詞テスト</option>
             <option value="sentences">例文テスト</option>
             <option value="shadowing">シャドーイング → 単語テスト</option>
+        </select>
+    </div>
+
+    <div class="mode-select-container" id="word-genre-container" style="display:none">
+        <span class="filter-label">🗂 ジャンル</span>
+        <select id="word-genre-select" class="page-select" onchange="onWordGenreChange()">
+            <option value="all">すべてのジャンル</option>
         </select>
     </div>
 
@@ -430,6 +438,72 @@ const words = [
     { ar: "مطبخ", pr: "maṭbakh", jp: "台所", p: 35 }
 ];
 
+// アラビア語表示用：発音情報からハラカを補って表示する。語尾の格変化までは付けず、学習用の基本形を表示する。
+function vocalizeArabic(ar, pr) {
+    if (!ar) return ar;
+    if (HARAKAT_OVERRIDES[ar]) return HARAKAT_OVERRIDES[ar];
+    const map = { 'ب':'b','ت':'t','ث':'th','ج':'j','ح':'ḥ','خ':'kh','د':'d','ذ':'dh','ر':'r','ز':'z','س':'s','ش':'sh','ص':'ṣ','ض':'ḍ','ط':'ṭ','ظ':'ẓ','ع':'ʿ','غ':'gh','ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n','ه':'h','و':'w','ي':'y','ء':'ʾ' };
+    const marks = {a:'َ',i:'ِ',u:'ُ'};
+    let roman = String(pr || '').toLowerCase()
+        .replace(/[’']/g,'ʾ').replace(/aa/g,'ā').replace(/ii/g,'ī').replace(/uu/g,'ū')
+        .replace(/[\s\-\/]+/g,'');
+    const chars = Array.from(ar);
+    let out = '';
+    let pos = 0;
+    const starts = x => roman.slice(pos, pos+x.length) === x;
+    const consume = x => { if(starts(x)){pos+=x.length;return true;} return false; };
+    const vowel = () => {
+        if(starts('ā')) { pos++; return 'a'; }
+        if(starts('ī')) { pos++; return 'i'; }
+        if(starts('ū')) { pos++; return 'u'; }
+        if(starts('a')) { pos++; return 'a'; }
+        if(starts('i')) { pos++; return 'i'; }
+        if(starts('u')) { pos++; return 'u'; }
+        return '';
+    };
+    for(let i=0;i<chars.length;i++) {
+        const ch=chars[i];
+        if(ch===' ') { out+=' '; continue; }
+        if(ch==='ة') { if(starts('h')) pos++; out+=ch; continue; }
+        if(ch==='ا') {
+            if(starts('ā')) { pos++; out+=ch; }
+            else if(starts('a')) { pos++; out+=ch+'َ'; }
+            else out+=ch;
+            continue;
+        }
+        if(ch==='أ' || ch==='إ' || ch==='آ') {
+            if(starts('ʾ')) pos++;
+            if(ch==='آ' || starts('ā')) { if(starts('ā')) pos++; out+=ch; }
+            else { const v=vowel(); out+=ch+(v?marks[v]:''); }
+            continue;
+        }
+        if((ch==='و' || ch==='ي') && !starts(map[ch])) { out+=ch; continue; }
+        const tok=map[ch];
+        if(!tok) { out+=ch; continue; }
+        // 子音を消費
+        if(starts(tok)) pos+=tok.length;
+        // 子音がローマ字で直後に重複している場合だけシャッダ
+        let doubled = roman.slice(pos).startsWith(tok) && tok.length>0;
+        // 長母音・短母音。ay/aw は最初の子音に fatḥa を付け、y/w は次の文字で処理する。
+        let v='';
+        if(starts('ā')) { pos++; v='a'; }
+        else if(starts('ī')) { pos++; v='i'; }
+        else if(starts('ū')) { pos++; v='u'; }
+        else if(starts('ay') || starts('aw')) { pos++; v='a'; }
+        else if(starts('a')) { pos++; v='a'; }
+        else if(starts('i')) { pos++; v='i'; }
+        else if(starts('u')) { pos++; v='u'; }
+        out+=ch+(v?marks[v]:'')+(doubled?'ّ':(!v && i<chars.length-1 && chars[i+1]!==' ' ? 'ْ':''));
+    }
+    return out;
+}
+
+
+// 文章・定型表現は自然なMSAの学習用発音に合わせた固定表記。
+const HARAKAT_OVERRIDES = {
+"صباح الخير":"صَبَاحُ الْخَيْرِ","مساء الخير":"مَسَاءُ الْخَيْرِ","ليله سعيده":"لَيْلَةٌ سَعِيدَةٌ","كيف حالك":"كَيْفَ حَالُكَ","انا بخير":"أَنَا بِخَيْرٍ","ما اسمك":"مَا اسْمُكَ","اسمي":"اِسْمِي","من اين انت":"مِنْ أَيْنَ أَنْتَ","انا من":"أَنَا مِنْ","اراك قريبا":"أَرَاكَ قَرِيبًا","اراك غدا":"أَرَاكَ غَدًا","تتكلم بالعربيه":"تَتَكَلَّمُ بِالْعَرَبِيَّةِ","ايمكننا ان نتحدث":"أَيُمْكِنُنَا أَنْ نَتَحَدَّثَ","ماذا عنك":"مَاذَا عَنْكَ","انه عديم الفائده":"إِنَّهُ عَدِيمُ الْفَائِدَةِ","هذا صحيح":"هَذَا صَحِيحٌ","انه مفيد":"إِنَّهُ مُفِيدٌ","انا خارج":"أَنَا خَارِجٌ","ليس بعد الان":"لَيْسَ بَعْدَ الْآنِ","استمع جيدا":"اِسْتَمِعْ جَيِّدًا","كنت في المنزل":"كُنْتُ فِي الْمَنْزِلِ","صحيح تماما":"صَحِيحٌ تَمَامًا","هي ضعيفه":"هِيَ ضَعِيفَةٌ","انت كسول":"أَنْتَ كَسُولٌ","دعها تذهب":"دَعْهَا تَذْهَبْ","لا على الاطلاق":"لَا عَلَى الْإِطْلَاقِ","شيئا فشيئا":"شَيْئًا فَشَيْئًا","انا لست سعيدا":"أَنَا لَسْتُ سَعِيدًا","انت ايضا":"أَنْتَ أَيْضًا","انا مريض":"أَنَا مَرِيضٌ","توقف عن التفكير":"تَوَقَّفْ عَنِ التَّفْكِيرِ","لا اعرف":"لَا أَعْرِفُ","انا اعرفه":"أَنَا أَعْرِفُهُ","اطول قليلا":"أَطْوَلُ قَلِيلًا","لا تلمسني":"لَا تَلْمَسْنِي","لا تتاخر":"لَا تَتَأَخَّرْ","انا لا اعتقد ذلك":"أَنَا لَا أَعْتَقِدُ ذَلِكَ","انت مخطئ":"أَنْتَ مُخْطِئٌ","اخرج":"اُخْرُجْ","هل انت هناك":"هَلْ أَنْتَ هُنَاكَ","ماذا تريد":"مَاذَا تُرِيدُ","ماذا تلعب":"مَاذَا تَلْعَبُ","ماذا تحتاج":"مَاذَا تَحْتَاجُ","ماذا تعرف":"مَاذَا تَعْرِفُ","ماذا تشعر":"مَاذَا تَشْعُرُ","ماذا تفكر":"مَاذَا تُفَكِّرُ","ماذا تقصد":"مَاذَا تَقْصِدُ","لا استطيع ان ارى":"لَا أَسْتَطِيعُ أَنْ أَرَى","لا استطيع ان اقول":"لَا أَسْتَطِيعُ أَنْ أَقُولَ","لا استطيع ان افعل":"لَا أَسْتَطِيعُ أَنْ أَفْعَلَ","لا استطيع ان اعيش":"لَا أَسْتَطِيعُ أَنْ أَعِيشَ","لا استطيع ان اشرب":"لَا أَسْتَطِيعُ أَنْ أَشْرَبَ","لا استطيع ان اجد":"لَا أَسْتَطِيعُ أَنْ أَجِدَ","لا استطيع ان اتذكر":"لَا أَسْتَطِيعُ أَنْ أَتَذَكَّرَ","لا استطيع ان انتظر":"لَا أَسْتَطِيعُ أَنْ أَنْتَظِرَ","هل تحب ذلك":"هَلْ تُحِبُّ ذَلِكَ","قبل ان تستسلم حاول":"قَبْلَ أَنْ تَسْتَسْلِمَ حَاوِلْ","لقد قلت انا اسف":"لَقَدْ قُلْتُ أَنَا آسِفٌ","افعل ما تريد":"اِفْعَلْ مَا تُرِيدُ","افعل ما اريد":"أَفْعَلُ مَا أُرِيدُ","انا ادرس الانجليزيه":"أَنَا أَدْرُسُ الْإِنْجِلِيزِيَّةَ","لا تنسى ذلك":"لَا تَنْسَ ذَلِكَ","يمكنك ان تقود السياره":"يُمْكِنُكَ أَنْ تَقُودَ السَّيَّارَةَ","انا لا اعرف لماذا":"أَنَا لَا أَعْرِفُ لِمَاذَا","سوف اثق بك":"سَوْفَ أَثِقُ بِكَ","سوف اتبعك":"سَوْفَ أَتَّبِعُكَ","سوف اشكرك":"سَوْفَ أَشْكُرُكَ","سوف استمع اليك":"سَوْفَ أَسْتَمِعُ إِلَيْكَ","لا تخيفني":"لَا تُخِفْنِي","لا تبكي":"لَا تَبْكِ","لا تقلق":"لَا تَقْلَقْ","لا تستسلم":"لَا تَسْتَسْلِمْ","انا اعيش هنا":"أَنَا أَعِيشُ هُنَا","انا في المطار":"أَنَا فِي الْمَطَارِ","انا احبك":"أَنَا أُحِبُّكَ","انا افتقدك":"أَنَا أَفْتَقِدُكَ","شكرا لك":"شُكْرًا لَكَ","مع السلامه":"مَعَ السَّلَامَةِ","اهلا":"أَهْلًا"
+};
+
 const SENTENCE_STORAGE_KEY = 'arabic_quiz_sentence_stats_v1';
 const WORD_STORAGE_KEY = 'arabic_quiz_word_stats_v1';
 const VERB_STORAGE_KEY = 'arabic_quiz_verb_stats_v1';
@@ -461,6 +535,25 @@ const basicVerbs = [
     { ar: "يحتاج", pr: "yaḥtāju", jp: "必要とする" },
     { ar: "يستطيع", pr: "yastaṭīʿu", jp: "できる" }
 ];
+
+// 既存の単語を学習しやすいジャンルに分類。元の単語データ・ページ番号は変更しない。
+const WORD_GENRES = {
+    "食べ物・飲み物": [2,7,28,37,44,47,50,66,95,96,99,102,105,106,109,110,117,120,125,138,139,143,147,148,149,157,160,173,175,179,188,207,211],
+    "動物": [17,30,39,53,65,70,72,73,74,91,93,100,124,132,136,137,140,152,163,166,172,176,185,196,199,203],
+    "自然・天気": [0,16,24,25,33,42,45,46,52,64,71,77,108,123,126,135,154,168,174,177,181,182,183,186,205],
+    "人・職業": [1,14,34,60,82,87,94,119,145,158,180,191],
+    "家・生活": [9,10,20,31,48,51,55,57,63,81,86,88,90,114,130,133,142,155,165,170,212],
+    "場所・建物": [41,61,75,78,79,83,84,111,115,141,144,162,204,208],
+    "乗り物": [12,58,76,80,121,128,150,151,190,198],
+    "身体・健康": [27,36,40,92,97,98,164,184,192,193,195],
+    "衣服・身につける物": [18,54,67,103,107,127,187,209],
+    "道具・物": [8,11,13,15,21,22,23,26,35,56,59,62,68,85,89,113,116,118,122,131,134,146,156,159,161,167,169,171,178,189,202,206,210],
+    "動作・状態": [38,32,43,49,69,101,104,112,129,153,194,197,200,201],
+    "その他": [3,4,5,6,19,29]
+};
+
+const WORD_GENRE_INDEX = {};
+Object.entries(WORD_GENRES).forEach(([genre, indices]) => indices.forEach(i => { WORD_GENRE_INDEX[i] = genre; }));
 
 const questionWords = [
     { ar: "من", pr: "man", jp: "誰（Who）" },
@@ -618,7 +711,7 @@ function loadProgress() {
 
 function saveProgress() {
     try {
-localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
+        localStorage.setItem(WORD_STORAGE_KEY, JSON.stringify(wordStats));
         localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceStats));
         localStorage.setItem(VERB_STORAGE_KEY, JSON.stringify(verbStats));
         localStorage.setItem(QUESTION_STORAGE_KEY, JSON.stringify(questionStats));
@@ -656,6 +749,20 @@ function getScopedWordIndices() {
     return words.map((_, i) => i);
 }
 
+function populateGenreSelector() {
+    const select=document.getElementById('word-genre-select');
+    if(!select) return;
+    const old=select.value;
+    select.innerHTML='<option value="all">すべてのジャンル</option>';
+    Object.keys(WORD_GENRES).forEach(genre=>{
+        const opt=document.createElement('option');
+        opt.value=genre;
+        opt.textContent=`${genre}（${WORD_GENRES[genre].length}語）`;
+        select.appendChild(opt);
+    });
+    if([...select.options].some(o=>o.value===old)) select.value=old;
+}
+
 function populatePageSelector() {
     const select = document.getElementById('word-page-select');
     if (!select) return;
@@ -670,6 +777,16 @@ function populatePageSelector() {
     if ([...select.options].some(o => o.value === old)) select.value = old;
 }
 
+function getGenreWordIndices() {
+    const genre = document.getElementById('word-genre-select')?.value || 'all';
+    if (genre === 'all') return words.map((_, i) => i);
+    return WORD_GENRES[genre] || [];
+}
+
+function getActiveWordIndices() {
+    return quizMode === 'genres' ? getGenreWordIndices() : getScopedWordIndices();
+}
+
 function getCurrentStats() {
     if (quizMode === "sentences") return sentenceStats;
     if (quizMode === "verbs") return verbStats;
@@ -679,7 +796,7 @@ function getCurrentStats() {
 
 function updateProgress() {
     const stats = getCurrentStats();
-    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : quizMode === "verbs" ? basicVerbs.map((_,i)=>i) : quizMode === "questions" ? questionWords.map((_,i)=>i) : getScopedWordIndices();
+    const indices = quizMode === "sentences" ? sentences.map((_,i)=>i) : quizMode === "verbs" ? basicVerbs.map((_,i)=>i) : quizMode === "questions" ? questionWords.map((_,i)=>i) : getActiveWordIndices();
     const totalItems = indices.length || 1;
     let unattempted=0, weak=0, review=0, mastered=0;
     indices.forEach(i => {
@@ -699,8 +816,10 @@ function updateProgress() {
 }
 
 function updateScopeUI() {
-    const container=document.getElementById('word-scope-container');
-    if (container) container.style.display=['sentences','verbs','questions'].includes(quizMode) ? 'none' : 'block';
+    const scopeContainer=document.getElementById('word-scope-container');
+    const genreContainer=document.getElementById('word-genre-container');
+    if (scopeContainer) scopeContainer.style.display=(quizMode === 'words' || quizMode === 'shadowing') ? 'block' : 'none';
+    if (genreContainer) genreContainer.style.display=quizMode === 'genres' ? 'block' : 'none';
     const scope=document.getElementById('word-scope-select');
     const page=document.getElementById('word-page-select');
     if (!scope || !page) return;
@@ -718,6 +837,11 @@ function updateModeUI() {
     } else if (quizMode === "questions") {
         select.value="questions";
         pageBadge.textContent=`5W1H ${questionWords.length}語`;
+    } else if (quizMode === "genres") {
+        select.value="genres";
+        const genre=document.getElementById('word-genre-select')?.value || 'all';
+        const count=getGenreWordIndices().length;
+        pageBadge.textContent=genre==='all'?`ジャンル別 ${count}語`:`${genre} ${count}語`;
     } else if (quizMode === "sentences") {
         select.value="sentences";
         pageBadge.textContent=`例文 (${sentences.length}文)`;
@@ -731,6 +855,11 @@ function updateModeUI() {
     }
     updateScopeUI();
 }
+
+window.onWordGenreChange=function(){
+    updateProgress();
+    nextQuestion();
+};
 
 window.onQuizModeChange=function(){
     quizMode=document.getElementById('quiz-mode-select').value;
@@ -765,6 +894,7 @@ function pickWeightedIndex(items, stats, allowedIndices=null) {
 }
 
 window.nextQuestion=function(){
+    if(quizMode==="genres") return nextWordQuestion();
     if(quizMode==="verbs") return nextBasicWordQuestion(basicVerbs, verbStats, "基本動詞テスト");
     if(quizMode==="questions") return nextBasicWordQuestion(questionWords, questionStats, "5W1H疑問詞テスト");
     if(quizMode==="sentences") return nextSentenceQuestion();
@@ -791,7 +921,7 @@ function setupBasicWordUI(label,bank){
     area.innerHTML='';
     if(currentMode==='choice'){
         title.textContent=`【${label}・4択】正しい日本語を選んでください`;
-        q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
+        q.textContent=vocalizeArabic(currentWord.ar, currentWord.pr); q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
         const choices=[currentWord.jp];
         while(choices.length<4){const c=bank[Math.floor(Math.random()*bank.length)].jp;if(!choices.includes(c))choices.push(c);}
         choices.sort(()=>Math.random()-0.5); const grid=document.createElement('div');grid.className='options-grid';
@@ -799,7 +929,7 @@ function setupBasicWordUI(label,bank){
         const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkBasicWordAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
     } else if(currentMode==='translate'){
         title.textContent=`【${label}・中級】日本語訳を入力してください`;
-        q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
+        q.textContent=vocalizeArabic(currentWord.ar, currentWord.pr); q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`; correctAnswer=currentWord.jp;
         area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="日本語を入力..." autocomplete="off"><br><div class="btn-group"><button class="submit-btn" onclick="checkBasicTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkBasicTypedAnswer(true)">分からない</button></div>';
     } else {
         title.textContent=`【${label}・上級】アラビア語で記述してください`;
@@ -816,9 +946,9 @@ window.checkBasicWordAnswer=function(userAns,btnElement){
     const feedback=document.getElementById('feedback-msg'), allBtns=document.querySelectorAll('.option-btn');
     allBtns.forEach(b=>b.disabled=true);
     if(isCorrect){if(btnElement)btnElement.classList.add('correct');feedback.textContent='正解！';feedback.style.color='#16a34a';}
-    else{if(btnElement&&userAns!==null)btnElement.classList.add('wrong');feedback.textContent=`❌ 正解は「${correctAnswer}」`;feedback.style.color='#dc2626';allBtns.forEach(b=>{if(b.textContent===correctAnswer)b.classList.add('correct');});}
+    else{if(btnElement&&userAns!==null)btnElement.classList.add('wrong');feedback.textContent=`❌ 正解は「${currentWord.jp}」`;feedback.style.color='#dc2626';allBtns.forEach(b=>{if(b.textContent===correctAnswer)b.classList.add('correct');});}
     document.getElementById('pronunciation-word').textContent=`【発音: ${currentWord.pr}】`;
-    document.getElementById('question-word').textContent=currentWord.ar;
+    document.getElementById('question-word').textContent=vocalizeArabic(currentWord.ar, currentWord.pr);
     updateProgress(); const nextBtn=document.getElementById('next-btn'); nextBtn.textContent='次の問題へ ➔'; nextBtn.onclick=nextQuestion; nextBtn.style.display='inline-block';
 };
 
@@ -835,11 +965,11 @@ window.checkBasicTypedAnswer=function(isSkip){
 
 function nextWordQuestion(){
     updateProgress();
-    const ids=getScopedWordIndices();
+    const ids=getActiveWordIndices();
     if(!ids.length) return;
     currentIdx=pickWeightedIndex(words,wordStats,ids);
     currentWord=words[currentIdx];
-const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
+    const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
     const badge=document.getElementById('rate-badge');
     if(rate===-1){currentMode="choice";badge.textContent="未挑戦 (4択)";badge.className="rate-badge rate-low";}
     else if(rate<0.4){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
@@ -864,7 +994,7 @@ function nextSentenceQuestion(){
     while(choices.length<4){const c=sentences[Math.floor(Math.random()*sentences.length)].ar;if(!choices.includes(c))choices.push(c);}
     choices.sort(()=>Math.random()-0.5);
     const grid=document.createElement('div'); grid.className='options-grid';
-    choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=c;b.style.direction='rtl';b.onclick=()=>checkSentenceAnswer(c,b);grid.appendChild(b);});
+    choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';const item=sentences.find(x=>x.ar===c);b.textContent=item?(HARAKAT_OVERRIDES[item.ar]||vocalizeArabic(item.ar,item.pr)):c;b.style.direction='rtl';b.onclick=()=>checkSentenceAnswer(c,b);grid.appendChild(b);});
     const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkSentenceAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
 }
 
@@ -882,9 +1012,9 @@ function nextShadowingQuestion(){
     updateModeUI(); clearQuestionArea();
     const q=document.getElementById('question-word'), p=document.getElementById('pronunciation-word'), title=document.getElementById('mode-title'), area=document.getElementById('interactive-area');
     title.textContent=`【シャドーイング ${shadowingBatchPos+1}/${shadowingBatch.length}】発音を確認して声に出してください`;
-    q.textContent=currentWord.ar; q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`;
+    q.textContent=vocalizeArabic(currentWord.ar, currentWord.pr); q.style.direction='rtl'; p.textContent=`【発音: ${currentWord.pr}】`;
     const card=document.createElement('div'); card.className='shadowing-card';
-    card.innerHTML=`<div class="shadowing-arabic">${currentWord.ar}</div><div class="shadowing-meaning">意味：${currentWord.jp}</div><div class="shadowing-pronunciation">${currentWord.pr}</div>`;
+    card.innerHTML=`<div class="shadowing-arabic">${vocalizeArabic(currentWord.ar, currentWord.pr)}</div><div class="shadowing-meaning">意味：${currentWord.jp}</div><div class="shadowing-pronunciation">${currentWord.pr}</div>`;
     const done=document.createElement('button'); done.className='shadowing-btn option-btn'; done.textContent=shadowingBatchPos+1<shadowingBatch.length?'シャドーイング完了 → 次の単語':'シャドーイング完了 → テスト開始'; done.onclick=completeShadowingWord;
     card.appendChild(done); area.appendChild(card);
 }
@@ -928,16 +1058,16 @@ function setupWordUI(){
     imageLink.href='https://www.google.com/search?tbm=isch&q='+encodeURIComponent(currentWord.ar+' '+currentWord.jp);
     imageLink.textContent='Google画像検索で画像を見る'; imageWrap.appendChild(imageLink); area.appendChild(imageWrap);
     if(currentMode==='choice'){
-        title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・4択】正しい日本語を選んでください':'【4択モード】正しい日本語を選んでください';
-        q.textContent=currentWord.ar;q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
-        const choices=[currentWord.jp]; const ids=getScopedWordIndices();
-        while(choices.length<4){const c=words[ids[Math.floor(Math.random()*ids.length)]].jp;if(!choices.includes(c))choices.push(c);}
+        title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・4択】日本語から正しいアラビア語を選んでください':'【4択モード】日本語から正しいアラビア語を選んでください';
+        q.textContent=currentWord.jp;q.style.direction='ltr';p.textContent='';correctAnswer=currentWord.ar;
+        const choices=[currentWord.ar]; const ids=getActiveWordIndices();
+        while(choices.length<4){const item=words[ids[Math.floor(Math.random()*ids.length)]];const c=item.ar;if(!choices.includes(c))choices.push(c);}
         choices.sort(()=>Math.random()-0.5); const grid=document.createElement('div');grid.className='options-grid';
-        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=c;b.onclick=()=>checkAnswer(c,b);grid.appendChild(b);});
+        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=vocalizeArabic(c, (words.find(x=>x.ar===c)||{}).pr||'');b.style.direction='rtl';b.onclick=()=>checkAnswer(c,b);grid.appendChild(b);});
         const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
     } else if(currentMode==='translate'){
         title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・中級】日本語訳を入力してください':'【中級モード】日本語訳を入力してください';
-        q.textContent=currentWord.ar;q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
+        q.textContent=vocalizeArabic(currentWord.ar, currentWord.pr);q.style.direction='rtl';p.textContent=`【発音: ${currentWord.pr}】`;correctAnswer=currentWord.jp;
         area.innerHTML='<input type="text" id="user-input" class="input-box" placeholder="日本語を入力..." autocomplete="off"><br><div class="btn-group"><button class="submit-btn" onclick="checkTypedAnswer(false)">回答する</button><button class="skip-btn" onclick="checkTypedAnswer(true)">分からない</button></div>';
     } else {
         title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・上級】アラビア語で記述してください':'【上級モード】アラビア語で記述してください';
@@ -971,7 +1101,7 @@ window.checkAnswer = function(userAns, btnElement) {
     }
 
     document.getElementById('pronunciation-word').textContent = `【発音: ${currentWord.pr}】`;
-    document.getElementById('question-word').textContent = currentWord.ar;
+    document.getElementById('question-word').textContent = vocalizeArabic(currentWord.ar, currentWord.pr);
     updateProgress();
     const nextBtn = document.getElementById('next-btn');
     nextBtn.textContent = quizMode === 'shadowing' ? '次のシャドーイングへ ➔' : '次の問題へ ➔';
@@ -993,11 +1123,11 @@ window.checkSentenceAnswer = function(userAns, btnElement) {
         feedback.style.color = '#16a34a';
     } else {
         if (btnElement && userAns !== null) btnElement.classList.add('wrong');
-        feedback.textContent = `❌ 正解は「${correctAnswer}」`;
+        feedback.textContent = `❌ 正解は「${HARAKAT_OVERRIDES[currentSentence.ar] || vocalizeArabic(currentSentence.ar, currentSentence.pr)}」`;
         feedback.style.color = '#dc2626';
 
         allBtns.forEach(b => {
-            if (b.textContent === correctAnswer) b.classList.add('correct');
+            if (b.textContent === (HARAKAT_OVERRIDES[currentSentence.ar] || vocalizeArabic(currentSentence.ar, currentSentence.pr))) b.classList.add('correct');
         });
     }
 
@@ -1078,6 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initStats();
     loadProgress();
     populatePageSelector();
+    populateGenreSelector();
     updateScopeUI();
     updateProgress();
     nextQuestion();
