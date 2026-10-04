@@ -116,6 +116,8 @@
             border-color: #cbd5e1;
         }
         .option-btn:hover { background-color: #f8fafc; }
+        .option-ar { font-size: 1.15rem; line-height: 1.5; }
+        .option-pr { direction: ltr; font-size: 0.85rem; color: #0284c7; margin-top: 3px; font-weight: normal; }
         .option-btn.correct { background-color: #22c55e !important; color: white !important; border-color: #16a34a !important; }
         .option-btn.wrong { background-color: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
 
@@ -427,7 +429,7 @@ const words = [
 
     // P.31 - P.35
     { ar: "عرس", pr: "ʿurs", jp: "結婚式", p: 31 }, { ar: "ضرس", pr: "ḍirs", jp: "奥歯", p: 31 },
-    { ar: "ضفدع", pr: "ḍifdaʿ", jp: "カエル", p: 31 }, { ar: "يغسل", pr: "yaghsil", jp: "洗う", p: 32 },
+    { ar: "ضفدع", pr:"ḍifdaʿ", jp: "カエル", p: 31 }, { ar: "يغسل", pr: "yaghsil", jp: "洗う", p: 32 },
     { ar: "غواصة", pr: "ghawwāṣah", jp: "潜水艦", p: 32 }, { ar: "عنكبوت", pr: "ʿankabūt", jp: "クモ", p: 32 },
     { ar: "يغرد", pr: "yugharrid", jp: "さえずる", p: 32 }, { ar: "مربع", pr: "murabbaʿ", jp: "正方形", p: 32 },
     { ar: "صمغ", pr: "ṣimgh", jp: "接着剤", p: 33 }, { ar: "بعوض", pr: "baʿūḍ", jp: "カ", p: 33 },
@@ -1036,7 +1038,7 @@ function startShadowingBatchTest(){
 }
 
 function finishShadowingItem(){
-    shadowingTestPos++;
+shadowingTestPos++;
     if(shadowingTestPos<shadowingBatch.length) startShadowingBatchTest();
     else { shadowingBatch=[]; shadowingBatchPos=0; shadowingTestPos=0; nextQuestion(); }
 }
@@ -1063,7 +1065,7 @@ function setupWordUI(){
         const choices=[currentWord.ar]; const ids=getActiveWordIndices();
         while(choices.length<4){const item=words[ids[Math.floor(Math.random()*ids.length)]];const c=item.ar;if(!choices.includes(c))choices.push(c);}
         choices.sort(()=>Math.random()-0.5); const grid=document.createElement('div');grid.className='options-grid';
-        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';b.textContent=vocalizeArabic(c, (words.find(x=>x.ar===c)||{}).pr||'');b.style.direction='rtl';b.onclick=()=>checkAnswer(c,b);grid.appendChild(b);});
+        choices.forEach(c=>{const b=document.createElement('button');b.className='option-btn';const item=words.find(x=>x.ar===c)||{};const arSpan=document.createElement('div');arSpan.className='option-ar';arSpan.textContent=vocalizeArabic(c,item.pr||'');const prSpan=document.createElement('div');prSpan.className='option-pr';prSpan.textContent=item.pr||'';b.appendChild(arSpan);b.appendChild(prSpan);b.style.direction='rtl';b.onclick=()=>checkAnswer(c,b);grid.appendChild(b);});
         const pass=document.createElement('button');pass.className='option-btn pass-btn';pass.textContent='❓ 分からない (パス)';pass.onclick=()=>checkAnswer(null,pass);grid.appendChild(pass);area.appendChild(grid);
     } else if(currentMode==='translate'){
         title.textContent=title.textContent.includes('シャドーイング')?'【シャドーイング後テスト・中級】日本語訳を入力してください':'【中級モード】日本語訳を入力してください';
