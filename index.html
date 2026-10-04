@@ -974,7 +974,7 @@ function nextWordQuestion(){
     const stat=wordStats[currentIdx]; const rate=stat.total===0?-1:stat.correct/stat.total;
     const badge=document.getElementById('rate-badge');
     if(rate===-1){currentMode="choice";badge.textContent="未挑戦 (4択)";badge.className="rate-badge rate-low";}
-    else if(rate<0.4){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
+    else if(rate<0.7){currentMode="choice";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (4択)`;badge.className="rate-badge rate-low";}
     else if(rate<0.8){currentMode="translate";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (日本語入力)`;badge.className="rate-badge rate-mid";}
     else {currentMode="write";badge.textContent=`正答率 ${(rate*100).toFixed(0)}% (アラビア語入力)`;badge.className="rate-badge rate-high";}
     updateModeUI(); clearQuestionArea(); setupWordUI();
